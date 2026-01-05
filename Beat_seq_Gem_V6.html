@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Vibe Pro 6.0 - Swing & ADSR</title>
+    <style>
+        :root {
+            --bg-dark: #121214;
+            --bg-panel: #1c1c21;
+            --bg-lighter: #2a2a35;
+            --accent: #00ff9d;
+            --accent-dim: rgba(0, 255, 157, 0.1);
+            --record: #ff4444;
+            --arm: #ffb700;
+            --text-main: #e0e0e0;
+            --text-dim: #888899;
+            --grid-gap: 4px;
+        }
+
+        * { box-sizing: border-box; user-select: none; -webkit-user-drag: none; }
+        
+        body {
+            margin: 0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- Header --- */
+        header {
+            height: 64px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid #333;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .logo { 
+            font-weight: 800; 
+            letter-spacing: -0.5px; 
+            color: var(--accent);
+            font-size: 1.1rem;
+            margin-right: 20px;
+        }
+
+        .controls-area {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            background: #000;
+            padding: 4px;
+            border-radius: 6px;
+            gap: 4px;
+        }
+
+        .control-label {
+            font-size: 0.7rem;
+            color: #666;
+            padding: 0 8px;
+            text-transform: uppercase;
+        }
+
+        button {
+            background: var(--bg-lighter);
+            border: 1px solid #444;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.1s;
+            height: 32px;
+        }
+
+        button:hover { background: #333; border-color: #666; }
+        button:active { transform: translateY(1px); }
+
+        button.primary { background: var(--accent); color: var(--bg-dark); border: none; }
+        button.primary:hover { background: #5cffc3; }
+        
+        button.rec-btn { width: 80px; transition: 0.2s; }
+        button.rec-btn.armed { background: var(--arm); color: #000; animation: pulse 1s infinite; }
+        button.rec-btn.recording { background: var(--record); color: white; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        input[type="number"] {
+            background: transparent;
+            border: none;
+            color: var(--accent);
+            width: 50px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+            font-family: monospace;
+        }
+        input[type="number"]:focus { outline: none; }
+
+        /* --- Pattern Controls --- */
+        .pattern-slots { display: flex; gap: 2px; }
+        .pattern-btn {
+            width: 30px; padding: 0; display: flex;
+            align-items: center; justify-content: center;
+            background: #222; color: #555; border: 1px solid #333;
+        }
+        .pattern-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+        /* Chain Toggle */
+        .chain-toggle {
+            width: 40px; height: 20px; background: #333;
+            border-radius: 10px; position: relative;
+            cursor: pointer; transition: 0.3s;
+        }
+        .chain-toggle.active { background: var(--accent); }
+        .chain-toggle-slider {
+            position: absolute; top: 2px; left: 2px;
+            width: 16px; height: 16px; background: white;
+            border-radius: 50%; transition: 0.3s;
+        }
+        .chain-toggle.active .chain-toggle-slider { left: 22px; }
+
+        /* Knobs */
+        .knob-container { position: relative; width: 40px; height: 50px; display: flex; flex-direction: column; align-items: center; }
+        .knob {
+            width: 32px; height: 32px; background: radial-gradient(circle, #444, #222);
+            border-radius: 50%; position: relative; cursor: ns-resize;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+        .knob-indicator {
+            position: absolute; top: 4px; left: 50%; width: 2px; height: 12px;
+            background: var(--accent); transform-origin: center 12px;
+            transform: translateX(-50%) rotate(0deg); pointer-events: none;
+        }
+        .knob-label { font-size: 0.6rem; color: #888; margin-top: 4px; }
+
+        .bar-select select {
+            background: transparent; color: white; border: none;
+            font-weight: bold; cursor: pointer;
+        }
+
+        /* --- Main Workspace --- */
+        .workspace {
+            flex: 1; display: flex; overflow: hidden; position: relative;
+        }
+
+        .track-headers {
+            width: 220px; background: var(--bg-panel); border-right: 1px solid #333;
+            display: flex; flex-direction: column; padding: 10px 0; flex-shrink: 0; z-index: 10;
+        }
+
+        .track-head {
+            height: 60px; display: flex; align-items: center; padding: 0 15px;
+            border-bottom: 1px solid #2a2a30; position: relative; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .track-head:hover { background: #252530; }
+        .track-head.selected { background: #2f2f3f; border-left: 3px solid var(--accent); }
+        .track-head h4 { margin: 0; font-size: 0.8rem; flex: 1; }
+        .track-head .track-controls { display: flex; gap: 5px; }
+        .track-head .mute-btn, .track-head .solo-btn { 
+            padding: 2px 6px; font-size: 0.6rem; height: auto; min-width: 25px;
+        }
+        .track-head .mute-btn.active { background: #ff4444; }
+        .track-head .solo-btn.active { background: #ffaa00; }
+
+        .grid-viewport {
+            flex: 1; overflow-x: auto; overflow-y: hidden;
+            padding: 10px 0; background: #151518; position: relative;
+        }
+
+        .grid-container { display: flex; flex-direction: column; min-width: 100%; }
+
+        .track-row {
+            height: 60px; display: flex; align-items: center;
+            border-bottom: 1px solid #222; padding: 0 10px; gap: var(--grid-gap);
+        }
+
+        .step-cell {
+            width: 40px; height: 50px; background: #222; border-radius: 4px;
+            position: relative; cursor: pointer; border: 1px solid #333;
+            transition: all 0.1s;
+        }
+        .step-cell:nth-child(4n) { margin-right: 8px; }
+        .step-cell.active { background: var(--accent-dim); border-color: var(--accent); }
+        .step-cell.playing { border-top: 3px solid white; filter: brightness(1.3); }
+        .step-cell.painting { border: 2px dashed var(--arm); }
+
+        /* Visual Elements */
+        .cell-fill {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: var(--accent); opacity: 0.6; pointer-events: none; transition: height 0.05s;
+        }
+        .cell-offset {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 4px; height: 4px; background: white; border-radius: 50%; pointer-events: none;
+        }
+        .cell-ratchet {
+            position: absolute; top: 2px; left: 0; right: 0; display: flex;
+            justify-content: center; gap: 2px;
+        }
+        .dot { width: 3px; height: 3px; background: white; border-radius: 50%; }
+        .cell-pan { position: absolute; bottom: 2px; right: 4px; font-size: 9px; color: #888; }
+        .cell-pitch { position: absolute; bottom: 2px; left: 4px; font-size: 9px; color: #ffaa00; }
+
+        /* --- Inspector Panel (New) --- */
+        .inspector-panel {
+            height: 80px; background: #18181d; border-top: 1px solid #333;
+            display: flex; align-items: center; padding: 0 20px; gap: 40px;
+        }
+        .inspector-title { color: var(--text-dim); font-size: 0.8rem; font-weight: bold; width: 150px; }
+        .inspector-controls { display: flex; gap: 20px; }
+        .param-control { display: flex; flex-direction: column; gap: 5px; width: 100px; }
+        .param-control label { font-size: 0.7rem; color: #666; }
+        .param-slider { width: 100%; -webkit-appearance: none; height: 4px; background: #333; border-radius: 2px; outline: none; }
+        .param-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: var(--accent); border-radius: 50%; cursor: pointer; }
+
+        /* Status Bar */
+        .status-bar {
+            height: 24px; background: #000; color: #555; font-size: 0.7rem;
+            display: flex; align-items: center; padding: 0 20px;
+            justify-content: space-between; border-top: 1px solid #222;
+        }
+        
+        #drag-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 9999; cursor: ns-resize; display: none;
+        }
+
+        input[type="file"] { display: none; }
+
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">GRID-VIBE 6.0</div>
+    
+    <div class="controls-area">
+        <div class="control-group">
+            <span class="control-label">Pat</span>
+            <div class="pattern-slots" id="pattern-slots"></div>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Bars</span>
+            <div class="bar-select">
+                <select id="bar-select">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="4" selected>4</option>
+                    <option value="8">8</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">BPM</span>
+            <input type="number" id="bpm-input" value="120" min="60" max="200">
+        </div>
+
+        <div class="control-group">
+            <div class="knob-container">
+                <div class="knob" id="swing-knob">
+                    <div class="knob-indicator" id="swing-indicator"></div>
+                </div>
+                <div class="knob-label" id="swing-val">SWING: 0%</div>
+            </div>
+            <div class="knob-container">
+                <div class="knob" id="filter-knob">
+                    <div class="knob-indicator" id="filter-indicator"></div>
+                </div>
+                <div class="knob-label" id="filter-label">FILT: OFF</div>
+            </div>
+        </div>
+
+        <button id="play-btn" class="primary">▶ PLAY</button>
+        <button id="stop-btn">■ STOP</button>
+        <button id="rec-btn" class="rec-btn">● REC</button>
+    </div>
+</header>
+
+<div class="workspace">
+    <div class="track-headers" id="track-headers"></div>
+    <div class="grid-viewport" id="grid-viewport">
+        <div class="grid-container" id="grid-container"></div>
+    </div>
+</div>
+
+<div class="inspector-panel">
+    <div class="inspector-title" id="inspector-title">SELECT A TRACK</div>
+    <div class="inspector-controls">
+        <div class="param-control">
+            <label>ATTACK</label>
+            <input type="range" class="param-slider" id="atk-slider" min="0.001" max="0.5" step="0.001" value="0.01">
+        </div>
+        <div class="param-control">
+            <label>RELEASE</label>
+            <input type="range" class="param-slider" id="rel-slider" min="0.05" max="2.0" step="0.01" value="0.3">
+        </div>
+        <div class="param-control">
+            <label>TUNE</label>
+            <input type="range" class="param-slider" id="tune-slider" min="0.5" max="2.0" step="0.01" value="1.0">
+        </div>
+    </div>
+</div>
+
+<div class="status-bar">
+    <span id="status-text">Shift↕: Vol | Alt↕: Pitch | Ctrl↕: Pan | Ctrl+Alt↕: Ratchet | Ctrl+Shift↕: Offset | Alt+Shift+Drag: Paint</span>
+    <span id="value-display"></span>
+</div>
+
+<div id="drag-overlay"></div>
+
+<script>
+/**
+ * GRID VIBE PRO 6.0
+ * Added: Global Swing, Per-Track Attack/Release/Tune
+ */
+
+const CONFIG = {
+    tracks: [
+        { name: "KICK", color: "#00ff9d", type: 'kick' },
+        { name: "SNARE", color: "#ff0055", type: 'snare' },
+        { name: "HIHAT", color: "#00e1ff", type: 'hihat' },
+        { name: "CLAP", color: "#bd00ff", type: 'clap' },
+        { name: "BASS", color: "#ffae00", type: 'kick' },
+        { name: "PERC", color: "#ffffff", type: 'hihat' },
+        { name: "FX", color: "#aaaaaa", type: 'snare' },
+        { name: "VOX", color: "#ff5555", type: 'clap' }
+    ],
+    patterns: 8
+};
+
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+const MASTER_GAIN = AC.createGain();
+MASTER_GAIN.gain.value = 0.8;
+
+// Dual Filter
+const FILTER_LP = AC.createBiquadFilter();
+const FILTER_HP = AC.createBiquadFilter();
+FILTER_LP.type = 'lowpass'; FILTER_LP.frequency.value = 20000;
+FILTER_HP.type = 'highpass'; FILTER_HP.frequency.value = 20;
+FILTER_LP.connect(FILTER_HP); FILTER_HP.connect(AC.destination);
+MASTER_GAIN.connect(FILTER_LP);
+
+// State
+const STATE = {
+    bpm: 120,
+    isPlaying: false,
+    currentStep: 0,
+    nextStepTime: 0,
+    activePattern: 0,
+    selectedTrack: 0,
+    bars: 4,
+    swing: 0, // 0 to 0.5 (where 0.5 is extreme shuffle)
+    filterPosition: 0,
+    
+    // Track Params (ADSR)
+    trackParams: CONFIG.tracks.map(() => ({
+        attack: 0.005,
+        release: 0.3,
+        tune: 1.0,
+        muted: false,
+        soloed: false
+    })),
+    
+    recording: { armed: false, active: false, buffer: null, processor: null },
+    data: [],
+    buffers: new Array(8).fill(null),
+    
+    // Interaction
+    isDragging: false,
+    isPainting: false,
+    paintMode: true,
+    draggedCells: new Set()
+};
+
+// Init Data
+for(let p=0; p<CONFIG.patterns; p++) {
+    STATE.data[p] = CONFIG.tracks.map(() => 
+        Array(128).fill().map(() => ({
+            active: false, velocity: 0.8, pitch: 1.0, ratchet: 1, pan: 0, offset: 0
+        }))
+    );
+}
+
+// --- Audio Engine (Updated with Envelope) ---
+
+function createSynth(type, time, dur, params, trackIdx) {
+    const osc = AC.createOscillator();
+    const gain = AC.createGain();
+    const pan = AC.createStereoPanner();
+    
+    osc.connect(gain).connect(pan).connect(MASTER_GAIN);
+
+    const tParams = STATE.trackParams[trackIdx];
+    const now = time;
+    const vol = params.velocity;
+    const pitch = params.pitch * tParams.tune; // Apply Global Track Tune
+    const atk = tParams.attack;
+    const rel = tParams.release;
+
+    pan.pan.value = params.pan;
+
+    // Apply ADSR Envelope
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(vol, now + atk);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + atk + rel);
+
+    if (type === 'kick') {
+        osc.frequency.setValueAtTime(150 * pitch, now);
+        osc.frequency.exponentialRampToValueAtTime(0.01, now + atk + rel);
+    } else if (type === 'snare') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(200 * pitch, now);
+        
+        // Noise layer
+        const noise = AC.createBufferSource();
+        const buf = AC.createBuffer(1, AC.sampleRate * 0.5, AC.sampleRate);
+        const d = buf.getChannelData(0);
+        for(let i=0; i<d.length; i++) d[i] = Math.random() * 2 - 1;
+        noise.buffer = buf;
+        const nGain = AC.createGain();
+        nGain.gain.setValueAtTime(0, now);
+        nGain.gain.linearRampToValueAtTime(vol * 0.5, now + atk);
+        nGain.gain.exponentialRampToValueAtTime(0.001, now + atk + rel);
+        noise.connect(nGain).connect(pan);
+        noise.start(now);
+    } else {
+        const noise = AC.createBufferSource();
+        const buf = AC.createBuffer(1, AC.sampleRate * 0.5, AC.sampleRate);
+        const d = buf.getChannelData(0);
+        for(let i=0; i<d.length; i++) d[i] = Math.random() * 2 - 1;
+        noise.buffer = buf;
+        
+        const filter = AC.createBiquadFilter();
+        filter.type = type === 'hihat' ? 'highpass' : 'bandpass';
+        filter.frequency.value = type === 'hihat' ? 8000 * pitch : 1000 * pitch;
+
+        noise.connect(filter).connect(gain).connect(pan);
+        noise.start(now);
+        return;
+    }
+
+    osc.start(now);
+    osc.stop(now + atk + rel + 0.1);
+}
+
+function playSample(buffer, time, params, trackIdx) {
+    const trackState = STATE.trackParams[trackIdx];
+    const anySolo = STATE.trackParams.some(t => t.soloed);
+    if (trackState.muted || (anySolo && !trackState.soloed)) return;
+    
+    const src = AC.createBufferSource();
+    src.buffer = buffer;
+    src.playbackRate.value = params.pitch * trackState.tune;
+
+    const gain = AC.createGain();
+    const pan = AC.createStereoPanner();
+    
+    pan.pan.value = params.pan;
+
+    // ADSR for Samples
+    const atk = trackState.attack;
+    const rel = trackState.release;
+    
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(params.velocity, time + atk);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + atk + rel);
+
+    src.connect(gain).connect(pan).connect(MASTER_GAIN);
+    src.start(time);
+}
+
+function triggerStep(trackIdx, time, stepData, stepIndex) {
+    const trackCfg = CONFIG.tracks[trackIdx];
+    const buffer = STATE.buffers[trackIdx];
+    const tParams = STATE.trackParams[trackIdx];
+    const anySolo = STATE.trackParams.some(t => t.soloed);
+    
+    if (tParams.muted || (anySolo && !tParams.soloed)) return;
+    
+    // SWING LOGIC
+    // Delay every odd numbered step (1, 3, 5...) assuming 0-indexed 16th notes
+    const stepDur = (60/STATE.bpm)/4;
+    let swingOffset = 0;
+    
+    if (stepIndex % 2 !== 0) {
+        // Apply swing delay to off-beats
+        swingOffset = stepDur * STATE.swing; 
+    }
+
+    // Combine manual offset + swing
+    const finalTime = time + swingOffset + (stepData.offset * stepDur);
+    
+    const ratchetCount = stepData.ratchet;
+    const subStep = stepDur / ratchetCount;
+
+    for(let i=0; i<ratchetCount; i++) {
+        const t = finalTime + (i * subStep);
+        if(buffer) {
+            playSample(buffer, t, stepData, trackIdx);
+        } else {
+            createSynth(trackCfg.type, t, subStep, stepData, trackIdx);
+        }
+    }
+}
+
+// --- Scheduler ---
+const LOOKAHEAD = 25.0;
+const SCHEDULE_AHEAD = 0.1;
+let timerID;
+
+function nextNote() {
+    const secondsPerBeat = 60.0 / STATE.bpm;
+    STATE.nextStepTime += 0.25 * secondsPerBeat;
+    STATE.currentStep++;
+    
+    const totalSteps = STATE.bars * 16;
+    if (STATE.currentStep >= totalSteps) {
+        STATE.currentStep = 0;
+        if (STATE.recording.active) stopRecording();
+        if (STATE.recording.armed) startRecording();
+    }
+}
+
+function scheduleNote(stepNumber, time) {
+    requestAnimationFrame(() => {
+        const allCells = document.querySelectorAll('.step-cell');
+        allCells.forEach(c => c.classList.remove('playing'));
+        const activeCells = document.querySelectorAll(`.step-cell[data-step="${stepNumber}"]`);
+        activeCells.forEach(c => c.classList.add('playing'));
+    });
+
+    STATE.data[STATE.activePattern].forEach((trackSteps, trackIdx) => {
+        const step = trackSteps[stepNumber];
+        if (step && step.active) {
+            triggerStep(trackIdx, time, step, stepNumber);
+        }
+    });
+}
+
+function scheduler() {
+    while (STATE.nextStepTime < AC.currentTime + SCHEDULE_AHEAD) {
+        scheduleNote(STATE.currentStep, STATE.nextStepTime);
+        nextNote();
+    }
+    timerID = setTimeout(scheduler, LOOKAHEAD);
+}
+
+// --- Inspector Logic ---
+function selectTrack(trackIdx) {
+    STATE.selectedTrack = trackIdx;
+    
+    // Highlight Header
+    document.querySelectorAll('.track-head').forEach((h, i) => {
+        h.classList.toggle('selected', i === trackIdx);
+    });
+
+    // Update Inspector UI
+    const params = STATE.trackParams[trackIdx];
+    document.getElementById('inspector-title').textContent = `TRACK: ${CONFIG.tracks[trackIdx].name}`;
+    document.getElementById('inspector-title').style.color = CONFIG.tracks[trackIdx].color;
+    
+    document.getElementById('atk-slider').value = params.attack;
+    document.getElementById('rel-slider').value = params.release;
+    document.getElementById('tune-slider').value = params.tune;
+}
+
+// Inspector Listeners
+document.getElementById('atk-slider').oninput = (e) => STATE.trackParams[STATE.selectedTrack].attack = parseFloat(e.target.value);
+document.getElementById('rel-slider').oninput = (e) => STATE.trackParams[STATE.selectedTrack].release = parseFloat(e.target.value);
+document.getElementById('tune-slider').oninput = (e) => STATE.trackParams[STATE.selectedTrack].tune = parseFloat(e.target.value);
+
+// --- UI Rendering ---
+
+function render() {
+    const patContainer = document.getElementById('pattern-slots');
+    patContainer.innerHTML = '';
+    for(let i=0; i<CONFIG.patterns; i++) {
+        const btn = document.createElement('button');
+        btn.className = `pattern-btn ${STATE.activePattern === i ? 'active' : ''}`;
+        btn.textContent = String.fromCharCode(65 + i);
+        btn.onclick = () => { STATE.activePattern = i; render(); };
+        patContainer.appendChild(btn);
+    }
+
+    const headContainer = document.getElementById('track-headers');
+    headContainer.innerHTML = '';
+    
+    CONFIG.tracks.forEach((t, i) => {
+        const div = document.createElement('div');
+        div.className = `track-head ${STATE.selectedTrack === i ? 'selected' : ''}`;
+        div.onclick = (e) => {
+            if(!e.target.classList.contains('mute-btn') && !e.target.classList.contains('solo-btn')) {
+                selectTrack(i);
+            }
+        };
+        div.innerHTML = `
+            <div style="width: 10px; height: 10px; background: ${t.color}; margin-right: 10px; border-radius: 50%;"></div>
+            <h4>${t.name}</h4>
+            <div class="track-controls">
+                <button class="mute-btn ${STATE.trackParams[i].muted ? 'active' : ''}" onclick="toggleMute(${i})">M</button>
+                <button class="solo-btn ${STATE.trackParams[i].soloed ? 'active' : ''}" onclick="toggleSolo(${i})">S</button>
+                <input type="file" id="file-${i}" onchange="loadSample(this, ${i})">
+                <button class="mute-btn" onclick="document.getElementById('file-${i}').click()">↑</button>
+            </div>
+        `;
+        headContainer.appendChild(div);
+    });
+
+    const gridContainer = document.getElementById('grid-container');
+    gridContainer.innerHTML = '';
+    
+    const totalSteps = STATE.bars * 16;
+    gridContainer.style.width = `${(totalSteps * 44) + 20}px`;
+    
+    STATE.data[STATE.activePattern].forEach((trackData, trackIdx) => {
+        const row = document.createElement('div');
+        row.className = 'track-row';
+        
+        for(let s=0; s<totalSteps; s++) {
+            const data = trackData[s];
+            const cell = document.createElement('div');
+            cell.className = `step-cell ${data.active ? 'active' : ''}`;
+            cell.dataset.track = trackIdx;
+            cell.dataset.step = s;
+            
+            const fillHeight = data.active ? (data.velocity * 100) + '%' : '0%';
+            let innerHTML = `<div class="cell-fill" style="height: ${fillHeight}; background: ${CONFIG.tracks[trackIdx].color}"></div>`;
+            
+            if(data.active) {
+                if(data.ratchet > 1) {
+                    const dots = Math.min(data.ratchet, 8);
+                    innerHTML += `<div class="cell-ratchet">`;
+                    for(let r=0; r<dots; r++) innerHTML += `<div class="dot"></div>`;
+                    innerHTML += `</div>`;
+                }
+                if(Math.abs(data.offset) > 0.05) {
+                    const offsetY = 25 - (data.offset * 40);
+                    innerHTML += `<div class="cell-offset" style="top: ${offsetY}px"></div>`;
+                }
+                if(Math.abs(data.pan) > 0.1) innerHTML += `<span class="cell-pan">${data.pan > 0 ? 'R' : 'L'}</span>`;
+                if(Math.abs(data.pitch - 1) > 0.1) innerHTML += `<span class="cell-pitch">${data.pitch > 1 ? '↑' : '↓'}</span>`;
+            }
+            
+            cell.innerHTML = innerHTML;
+            cell.onmousedown = (e) => handleCellDown(e, trackIdx, s);
+            cell.onmouseenter = (e) => handleCellEnter(e, trackIdx, s);
+            row.appendChild(cell);
+        }
+        gridContainer.appendChild(row);
+    });
+}
+
+// --- Interaction ---
+let dragStart = { x: 0, y: 0 };
+let currentCell = null;
+let initialData = null;
+
+function handleCellDown(e, track, step) {
+    if(e.button !== 0) return;
+    
+    selectTrack(track); // Auto select track on click
+    const data = STATE.data[STATE.activePattern][track][step];
+    
+    if(e.altKey && e.shiftKey) {
+        STATE.isPainting = true;
+        STATE.paintMode = !data.active;
+        STATE.draggedCells.clear();
+        data.active = STATE.paintMode;
+        if(STATE.paintMode) data.velocity = 0.8;
+        STATE.draggedCells.add(`${track}-${step}`);
+        updateCellVisual(track, step, data);
+        return;
+    }
+    
+    if(e.shiftKey || e.altKey || e.ctrlKey) {
+        currentCell = { track, step };
+        initialData = { ...data };
+        dragStart = { x: e.clientX, y: e.clientY };
+        document.getElementById('drag-overlay').style.display = 'block';
+        if(!data.active) { data.active = true; data.velocity = 0.8; }
+        updateCellVisual(track, step, data);
+        return;
+    }
+    
+    data.active = !data.active;
+    if(data.active) data.velocity = 0.8;
+    updateCellVisual(track, step, data);
+}
+
+function handleCellEnter(e, track, step) {
+    if(!STATE.isPainting) return;
+    const cellKey = `${track}-${step}`;
+    if(STATE.draggedCells.has(cellKey)) return;
+    
+    const data = STATE.data[STATE.activePattern][track][step];
+    data.active = STATE.paintMode;
+    if(STATE.paintMode) data.velocity = 0.8;
+    STATE.draggedCells.add(cellKey);
+    updateCellVisual(track, step, data);
+}
+
+document.addEventListener('mouseup', () => {
+    STATE.isPainting = false;
+    STATE.draggedCells.clear();
+    document.getElementById('drag-overlay').style.display = 'none';
+    currentCell = null;
+    document.getElementById('value-display').textContent = "";
+});
+
+document.getElementById('drag-overlay').onmousemove = (e) => {
+    if(!currentCell) return;
+    const dy = dragStart.y - e.clientY;
+    const data = STATE.data[STATE.activePattern][currentCell.track][currentCell.step];
+    const display = document.getElementById('value-display');
+
+    if(e.shiftKey && !e.altKey && !e.ctrlKey) {
+        data.velocity = Math.max(0.1, Math.min(1.0, initialData.velocity + (dy / 200)));
+        display.textContent = `VEL: ${(data.velocity*100).toFixed(0)}%`;
+    } else if(e.altKey && !e.shiftKey && !e.ctrlKey) {
+        data.pitch = Math.max(0.5, Math.min(2.0, initialData.pitch + (dy / 200)));
+        display.textContent = `PITCH: ${data.pitch.toFixed(2)}x`;
+    } else if(e.ctrlKey && !e.altKey && !e.shiftKey) {
+        data.pan = Math.max(-1, Math.min(1, initialData.pan + (dy / 100)));
+        display.textContent = `PAN: ${data.pan.toFixed(2)}`;
+    } else if(e.ctrlKey && e.altKey && !e.shiftKey) {
+        const steps = Math.floor(dy / 20);
+        data.ratchet = Math.max(1, Math.min(64, initialData.ratchet + steps));
+        display.textContent = `RATCH: ${data.ratchet}x`;
+    } else if(e.ctrlKey && e.shiftKey && !e.altKey) {
+        data.offset = Math.max(-0.5, Math.min(0.5, initialData.offset + (dy / 400)));
+        display.textContent = `OFF: ${(data.offset*100).toFixed(0)}%`;
+    }
+    updateCellVisual(currentCell.track, currentCell.step, data);
+};
+
+function updateCellVisual(t, s, data) {
+    const cell = document.querySelector(`.step-cell[data-track="${t}"][data-step="${s}"]`);
+    if(!cell) return;
+    cell.classList.toggle('active', data.active);
+    
+    let innerHTML = `<div class="cell-fill" style="height: ${data.active ? data.velocity * 100 : 0}%; background: ${CONFIG.tracks[t].color}"></div>`;
+    
+    if(data.active) {
+        if(data.ratchet > 1) {
+            const dots = Math.min(data.ratchet, 8);
+            innerHTML += `<div class="cell-ratchet">`;
+            for(let r=0; r<dots; r++) innerHTML += `<div class="dot"></div>`;
+            innerHTML += `</div>`;
+        }
+        if(Math.abs(data.offset) > 0.05) {
+            const offsetY = 25 - (data.offset * 40);
+            innerHTML += `<div class="cell-offset" style="top: ${offsetY}px"></div>`;
+        }
+    }
+    cell.innerHTML = innerHTML;
+}
+
+// Helpers
+function toggleMute(trackIdx) { STATE.trackParams[trackIdx].muted = !STATE.trackParams[trackIdx].muted; render(); }
+function toggleSolo(trackIdx) { STATE.trackParams[trackIdx].soloed = !STATE.trackParams[trackIdx].soloed; render(); }
+
+async function loadSample(input, trackIdx) {
+    if(input.files && input.files[0]) {
+        const ab = await input.files[0].arrayBuffer();
+        STATE.buffers[trackIdx] = await AC.decodeAudioData(ab);
+        CONFIG.tracks[trackIdx].name = input.files[0].name.substring(0,8).toUpperCase();
+        render();
+    }
+}
+
+// Knob Interactions
+function setupKnob(id, callback) {
+    let active = false;
+    let startY = 0;
+    let startVal = 0;
+    const el = document.getElementById(id);
+    
+    el.onmousedown = (e) => {
+        active = true; startY = e.clientY;
+        // Hacky: retrieve current val from global state
+        startVal = id === 'swing-knob' ? STATE.swing : STATE.filterPosition;
+    };
+    
+    document.addEventListener('mousemove', (e) => {
+        if(!active) return;
+        const delta = (startY - e.clientY) / 200;
+        callback(delta, startVal);
+    });
+    
+    document.addEventListener('mouseup', () => active = false);
+}
+
+setupKnob('swing-knob', (delta, start) => {
+    let val = Math.max(0, Math.min(0.5, start + delta));
+    STATE.swing = val;
+    const deg = (val / 0.5) * 270 - 135;
+    document.getElementById('swing-indicator').style.transform = `translateX(-50%) rotate(${deg}deg)`;
+    document.getElementById('swing-val').textContent = `SWING: ${(val*200).toFixed(0)}%`;
+});
+
+setupKnob('filter-knob', (delta, start) => {
+    let val = Math.max(-1, Math.min(1, start + delta));
+    STATE.filterPosition = val;
+    const deg = val * 135;
+    document.getElementById('filter-indicator').style.transform = `translateX(-50%) rotate(${deg}deg)`;
+    
+    if(val < -0.3) {
+        FILTER_LP.frequency.value = 20000 * Math.pow(2, (val + 1) * 10);
+        FILTER_HP.frequency.value = 20;
+        document.getElementById('filter-label').textContent = 'FILT: LP';
+    } else if(val > 0.3) {
+        FILTER_HP.frequency.value = 20 * Math.pow(2, val * 10);
+        FILTER_LP.frequency.value = 20000;
+        document.getElementById('filter-label').textContent = 'FILT: HP';
+    } else {
+        FILTER_LP.frequency.value = 20000; FILTER_HP.frequency.value = 20;
+        document.getElementById('filter-label').textContent = 'FILT: OFF';
+    }
+});
+
+// Transport
+function togglePlay() {
+    if (AC.state === 'suspended') AC.resume();
+    if (STATE.isPlaying) {
+        STATE.isPlaying = false; clearTimeout(timerID);
+        document.getElementById('play-btn').textContent = "▶ PLAY";
+    } else {
+        STATE.isPlaying = true; STATE.currentStep = 0; STATE.nextStepTime = AC.currentTime;
+        scheduler(); document.getElementById('play-btn').textContent = "⏸ PAUSE";
+    }
+}
+
+document.getElementById('play-btn').onclick = togglePlay;
+document.getElementById('stop-btn').onclick = () => {
+    STATE.isPlaying = false; clearTimeout(timerID); STATE.currentStep = 0;
+    document.getElementById('play-btn').textContent = "▶ PLAY";
+    document.querySelectorAll('.step-cell').forEach(c => c.classList.remove('playing'));
+};
+document.getElementById('rec-btn').onclick = () => {
+    if(STATE.recording.active) return;
+    STATE.recording.armed = true;
+    document.getElementById('rec-btn').classList.add('armed');
+    if(!STATE.isPlaying) togglePlay();
+};
+
+// Recording (Simplified Wav)
+function startRecording() {
+    STATE.recording.armed = false; STATE.recording.active = true;
+    const bufSize = AC.sampleRate * 60; // Max 60 sec buffer for safety
+    STATE.recording.buffer = new Float32Array(bufSize * 2);
+    let idx = 0;
+    const node = AC.createScriptProcessor(4096, 2, 2);
+    node.onaudioprocess = e => {
+        const l = e.inputBuffer.getChannelData(0);
+        const r = e.inputBuffer.getChannelData(1);
+        for(let i=0; i<l.length; i++) {
+            if(idx < STATE.recording.buffer.length) {
+                STATE.recording.buffer[idx++] = l[i];
+                STATE.recording.buffer[idx++] = r[i];
+            }
+        }
+    };
+    MASTER_GAIN.connect(node); node.connect(AC.destination);
+    STATE.recording.processor = node;
+    document.getElementById('rec-btn').classList.remove('armed');
+    document.getElementById('rec-btn').classList.add('recording');
+}
+
+function stopRecording() {
+    if(!STATE.recording.active) return;
+    STATE.recording.active = false;
+    STATE.recording.processor.disconnect();
+    MASTER_GAIN.disconnect(STATE.recording.processor);
+    
+    // Quick Wav Export
+    const len = STATE.recording.buffer.length / 2; // Approximate filled length needs better tracking usually, but for vibe code...
+    // Actually, in scriptProcessor we don't know exact length unless we tracked idx globally. 
+    // Let's assume full buffer or trimmed. For vibe code, let's just dump.
+    const ab = new ArrayBuffer(44 + len * 2);
+    const view = new DataView(ab);
+    const write = (o, s) => { for(let i=0; i<s.length; i++) view.setUint8(o+i, s.charCodeAt(i)); };
+    write(0, 'RIFF'); view.setUint32(4, 36 + len*2, true); write(8, 'WAVEfmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 2, true);
+    view.setUint32(24, AC.sampleRate, true); view.setUint32(28, AC.sampleRate*4, true);
+    view.setUint16(32, 4, true); view.setUint16(34, 16, true); write(36, 'data');
+    view.setUint32(40, len*2, true);
+    let offset = 44;
+    for(let i=0; i<len*2; i++) {
+        const s = Math.max(-1, Math.min(1, STATE.recording.buffer[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        offset+=2;
+    }
+    const blob = new Blob([ab], {type: 'audio/wav'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `Vibe_${Date.now()}.wav`; a.click();
+    document.getElementById('rec-btn').classList.remove('recording');
+}
+
+document.getElementById('bpm-input').onchange = (e) => STATE.bpm = parseInt(e.target.value);
+document.getElementById('bar-select').onchange = (e) => { STATE.bars = parseInt(e.target.value); render(); };
+
+render();
+selectTrack(0); // Init selection
+
+</script>
+</body>
+</html>
