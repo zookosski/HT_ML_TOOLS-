@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fractal Depth Video Engine v2.0</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body {
+            background-color: #0d0d0d;
+            color: #00ffcc;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        h1 { color: #ff3366; border-bottom: 1px solid #333; padding-bottom: 10px;}
+        .panel {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            width: 800px;
+            margin-bottom: 20px;
+        }
+        .controls { display: flex; gap: 20px; align-items: center; margin-top: 15px; }
+        .slider-group { display: flex; flex-direction: column; width: 200px; }
+        input[type="range"] { accent-color: #ff3366; }
+        button, input[type="file"] {
+            background: #222; color: #fff; border: 1px solid #00ffcc;
+            padding: 10px 15px; cursor: pointer; font-family: monospace; border-radius: 4px;
+        }
+        button:hover { background: #00ffcc; color: #000; }
+        button:disabled { border-color: #555; color: #555; cursor: not-allowed; }
+        .canvas-container { position: relative; display: flex; gap: 10px; }
+        canvas { border: 2px solid #333; background: #000; max-width: 400px; }
+        #status { margin-top: 10px; color: #ffcc00; font-weight: bold; }
+        video { display: none; } /* Hidden, we only use it for data extraction */
+    </style>
+</head>
+<body>
+
+    <h1>[ FRACTAL DEPTH ENGINE : VIDEO EDITION ]</h1>
+    
+    <div class="panel">
+        <div>1. LOAD MP4 VIDEO</div>
+        <input type="file" id="upload" accept="video/mp4,video/webm">
+        
+        <div class="controls">
+            <div class="slider-group">
+                <label>Terrace Steps (Faces = 4-6): <span id="val-steps">5</span></label>
+                <input type="range" id="slider-steps" min="2" max="12" step="1" value="5">
+            </div>
+            <div class="slider-group">
+                <label>Sobel Ridge Power: <span id="val-sobel">1.5</span></label>
+                <input type="range" id="slider-sobel" min="0" max="3" step="0.1" value="1.5">
+            </div>
+            <div class="slider-group">
+                <label>Preview Frame: <span id="val-frame">0s</span></label>
+                <input type="range" id="slider-time" min="0" max="100" step="0.1" value="0" disabled>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <button id="btn-export" disabled>PROCESS TO ZIP (Mandelbulber Sequence)</button>
+            <div id="status">Awaiting Video Input...</div>
+        </div>
+    </div>
+
+    <div class="canvas-container">
+        <div>
+            <div style="text-align:center; margin-bottom: 5px; color:#aaa;">Original</div>
+            <canvas id="canvas-src"></canvas>
+        </div>
+        <div>
+            <div style="text-align:center; margin-bottom: 5px; color:#ff3366;">Math Output</div>
+            <canvas id="canvas-out"></canvas>
+        </div>
+    </div>
+
+    <video id="video" muted></video>
+
+<script>
+    const video = document.getElementById('video');
+    const upload = document.getElementById('upload');
+    const canvasSrc = document.getElementById('canvas-src');
+    const canvasOut = document.getElementById('canvas-out');
+    const ctxSrc = canvasSrc.getContext('2d');
+    const ctxOut = canvasOut.getContext('2d');
+    
+    const sliderSteps = document.getElementById('slider-steps');
+    const sliderSobel = document.getElementById('slider-sobel');
+    const sliderTime = document.getElementById('slider-time');
+    const btnExport = document.getElementById('btn-export');
+    const status = document.getElementById('status');
+
+    let videoLoaded = false;
+
+    // --- UI Listeners ---
+    sliderSteps.addEventListener('input', (e) => { document.getElementById('val-steps').innerText = e.target.value; updatePreview(); });
+    sliderSobel.addEventListener('input', (e) => { document.getElementById('val-sobel').innerText = e.target.value; updatePreview(); });
+    
+    sliderTime.addEventListener('input', (e) => {
+        if(!videoLoaded) return;
+        video.currentTime = (e.target.value / 100) * video.duration;
+        document.getElementById('val-frame').innerText = video.currentTime.toFixed(2) + "s";
+    });
+
+    // --- Video Loading ---
+    upload.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        video.src = url;
+    });
+
+    video.addEventListener('loadeddata', () => {
+        videoLoaded = true;
+        sliderTime.disabled = false;
+        btnExport.disabled = false;
+        
+        // Scale down video for processing if massive
+        const maxSize = 800;
+        let w = video.videoWidth;
+        let h = video.videoHeight;
+        if (w > maxSize || h > maxSize) {
+            const ratio = Math.min(maxSize / w, maxSize / h);
+            w = Math.floor(w * ratio);
+            h = Math.floor(h * ratio);
+        }
+        
+        canvasSrc.width = w; canvasSrc.height = h;
+        canvasOut.width = w; canvasOut.height = h;
+        
+        status.innerText = "Video Loaded. Set parameters and scrub preview.";
+        video.currentTime = 0; // Trigger seeked event
+    });
+
+    video.addEventListener('seeked', updatePreview);
+
+    // --- The Math Engine ---
+    function applyAlgorithm(ctxInput, ctxOutput, w, h) {
+        const imageData = ctxInput.getImageData(0, 0, w, h);
+        const data = imageData.data;
+        const steps = parseInt(sliderSteps.value);
+        const sobelStr = parseFloat(sliderSobel.value);
+        
+        const luma = new Float32Array(w * h);
+        const outData = ctxOutput.createImageData(w, h);
+        const oData = outData.data;
+
+        // 1. Grayscale
+        for (let i = 0; i < data.length; i += 4) {
+            luma[i/4] = data[i]*0.299 + data[i+1]*0.587 + data[i+2]*0.114;
+        }
+
+        // 2. Strict Quantization (Locked Terraces for Video Stability)
+        const terraced = new Float32Array(w * h);
+        const stepSize = 255 / (steps - 1);
+        for (let i = 0; i < luma.length; i++) {
+            // Snap pixel to the nearest mathematical step
+            terraced[i] = Math.round(luma[i] / stepSize) * stepSize;
+        }
+
+        // 3. Sobel Edge Detection
+        const sobelData = new Float32Array(w * h);
+        if (sobelStr > 0) {
+            const kernelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+            const kernelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+            for (let y = 1; y < h - 1; y++) {
+                for (let x = 1; x < w - 1; x++) {
+                    let pX = 0; let pY = 0; let i = 0;
+                    for (let ky = -1; ky <= 1; ky++) {
+                        for (let kx = -1; kx <= 1; kx++) {
+                            let val = luma[((y + ky) * w + (x + kx))];
+                            pX += val * kernelX[i];
+                            pY += val * kernelY[i];
+                            i++;
+                        }
+                    }
+                    sobelData[y * w + x] = Math.sqrt(pX * pX + pY * pY);
+                }
+            }
+        }
+
+        // 4. Blend & Render
+        for (let i = 0; i < w * h; i++) {
+            let finalPixel = terraced[i] + (sobelData[i] * sobelStr);
+            if (finalPixel > 255) finalPixel = 255;
+            
+            let dataIdx = i * 4;
+            oData[dataIdx] = finalPixel;     
+            oData[dataIdx + 1] = finalPixel; 
+            oData[dataIdx + 2] = finalPixel; 
+            oData[dataIdx + 3] = 255;        
+        }
+        ctxOutput.putImageData(outData, 0, 0);
+    }
+
+    function updatePreview() {
+        if(!videoLoaded) return;
+        ctxSrc.drawImage(video, 0, 0, canvasSrc.width, canvasSrc.height);
+        applyAlgorithm(ctxSrc, ctxOut, canvasOut.width, canvasOut.height);
+    }
+
+    // --- Batch ZIP Exporter ---
+    btnExport.addEventListener('click', async () => {
+        btnExport.disabled = true;
+        sliderTime.disabled = true;
+        const zip = new JSZip();
+        const fps = 15; // Process at 15fps to keep zip size manageable
+        const duration = video.duration;
+        const totalFrames = Math.floor(duration * fps);
+        let currentFrame = 0;
+
+        status.innerText = `Processing Frame 0 / ${totalFrames}...`;
+
+        // We process frames sequentially using promises to avoid freezing the browser
+        for (let t = 0; t <= duration; t += 1/fps) {
+            await new Promise(resolve => {
+                video.currentTime = t;
+                video.addEventListener('seeked', function onSeek() {
+                    video.removeEventListener('seeked', onSeek);
+                    updatePreview();
+                    
+                    // Pad filename to frame_0000.png
+                    const frameStr = currentFrame.toString().padStart(4, '0');
+                    const dataUrl = canvasOut.toDataURL('image/png');
+                    // Remove the header of the base64 string
+                    const base64Data = dataUrl.replace(/^data:image\/(png|jpg);base64,/, "");
+                    
+                    zip.file(`frame_${frameStr}.png`, base64Data, {base64: true});
+                    currentFrame++;
+                    status.innerText = `Processing Frame ${currentFrame} / ${totalFrames}...`;
+                    resolve();
+                });
+            });
+        }
+
+        status.innerText = "Zipping files... please wait.";
+        zip.generateAsync({type:"blob"}).then(function(content) {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = "Mandelbulber_Animated_Depth.zip";
+            link.click();
+            status.innerText = "Export Complete! Zip downloaded.";
+            btnExport.disabled = false;
+            sliderTime.disabled = false;
+        });
+    });
+</script>
+
+</body>
+</html>
