@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MNDLBR Scene Placer v3 — SDF Viewport</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&display=swap');
+:root{
+  /* ── SCALE: change this to 1.5 or 1.8 for ultrawide / high-DPI ── */
+  --s:1.35;
+  /* Derived sizes */
+  --f0:calc(7px*var(--s));   /* nano */
+  --f1:calc(8px*var(--s));   /* small */
+  --f2:calc(10px*var(--s));  /* medium */
+  --f3:calc(13px*var(--s));  /* base */
+  --f4:calc(16px*var(--s));  /* large */
+  --p1:calc(4px*var(--s));
+  --p2:calc(7px*var(--s));
+  --p3:calc(10px*var(--s));
+  --r1:calc(3px*var(--s));
+  /* Colors */
+  --bg:#05080d;--panel:#090d15;--panel2:#0c1019;--border:#162030;
+  --acc:#00e5ff;--acc2:#ff6b35;--acc3:#39ff14;--warn:#ffd700;
+  --text:#a8c0d8;--dim:#2d4560;--danger:#ff2d55;
+  --xc:#ff4466;--yc:#44ff88;--zc:#4499ff;
+  --sp:#00e5ff;--bx:#ff6b35;--pl:#b44fff;--cy:#39ff14;
+  --tr:#ffd700;--cl:#ff69b4;--cn:#ff8c00;--el:#00ff9d;--pr:#e040fb;--wt:#00bfff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:'Barlow Condensed',sans-serif;
+  font-size:var(--f3);display:flex;flex-direction:column}
+
+/* TOPBAR */
+#top{height:calc(42px*var(--s));background:var(--panel);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 var(--p3);gap:calc(10px*var(--s));flex-shrink:0;z-index:20}
+.logo{font-family:'Share Tech Mono',monospace;font-size:var(--f3);color:var(--acc);
+  letter-spacing:calc(3px*var(--s));text-shadow:0 0 12px rgba(0,229,255,.4);white-space:nowrap}
+.sep{width:1px;height:calc(22px*var(--s));background:var(--border);flex-shrink:0}
+.tbtn{border:none;border-radius:var(--r1);cursor:pointer;
+  padding:calc(4px*var(--s)) calc(10px*var(--s));
+  font-size:calc(11px*var(--s));
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  letter-spacing:calc(1.5px*var(--s));transition:.12s;text-transform:uppercase;white-space:nowrap}
+.tbtn-mode{background:none;border:1px solid var(--border);color:var(--dim)}
+.tbtn-mode:hover,.tbtn-mode.act{border-color:var(--acc);color:var(--acc);background:rgba(0,229,255,.06)}
+.tbtn-ghost{background:none;border:1px solid var(--border);color:var(--dim)}
+.tbtn-ghost:hover{border-color:var(--acc2);color:var(--acc2)}
+.tbtn-obj{background:rgba(57,255,20,.08);border:1px solid rgba(57,255,20,.25);color:var(--acc3)}
+.tbtn-obj:hover{background:rgba(57,255,20,.15)}
+.tbtn-pri{background:var(--acc);color:#000;font-weight:900}
+.tbtn-pri:hover{background:#fff;box-shadow:0 0 16px rgba(0,229,255,.5)}
+.kbadge{background:rgba(255,255,255,.07);border-radius:calc(2px*var(--s));
+  padding:calc(1px*var(--s)) calc(4px*var(--s));
+  font-size:var(--f0);color:rgba(255,255,255,.3);margin-left:calc(2px*var(--s))}
+.top-r{margin-left:auto;display:flex;gap:calc(6px*var(--s));align-items:center}
+
+/* SCALE SLIDER in topbar */
+.scale-ctrl{display:flex;align-items:center;gap:calc(5px*var(--s));
+  font-family:'Share Tech Mono',monospace;font-size:var(--f0);color:var(--dim)}
+.scale-ctrl input[type=range]{width:calc(60px*var(--s));-webkit-appearance:none;
+  background:var(--border);height:calc(3px*var(--s));border-radius:2px;outline:none;cursor:pointer}
+.scale-ctrl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;
+  width:calc(10px*var(--s));height:calc(10px*var(--s));background:var(--dim);border-radius:50%}
+
+/* MAIN */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* LEFT */
+#left{width:calc(190px*var(--s));flex-shrink:0;background:var(--panel);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.ph{padding:var(--p2) var(--p3);font-size:var(--f0);letter-spacing:calc(3px*var(--s));
+  color:var(--dim);border-bottom:1px solid var(--border);text-transform:uppercase;
+  display:flex;align-items:center;justify-content:space-between}
+.ph .ct{font-family:'Share Tech Mono',monospace;font-size:var(--f2);color:var(--acc)}
+.add-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:calc(4px*var(--s));padding:var(--p2)}
+.ab{background:none;border:1px solid var(--border);border-radius:var(--r1);
+  padding:calc(6px*var(--s)) calc(3px*var(--s));cursor:pointer;display:flex;
+  flex-direction:column;align-items:center;gap:calc(3px*var(--s));transition:.1s;
+  color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:var(--f0);letter-spacing:.5px}
+.ab .ic{font-size:calc(15px*var(--s));line-height:1}
+.ab:hover{transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,.4)}
+.ab[data-t=sphere]:hover{border-color:var(--sp);color:var(--sp);background:rgba(0,229,255,.04)}
+.ab[data-t=box]:hover{border-color:var(--bx);color:var(--bx)}
+.ab[data-t=plane]:hover{border-color:var(--pl);color:var(--pl)}
+.ab[data-t=cylinder]:hover{border-color:var(--cy);color:var(--cy)}
+.ab[data-t=torus]:hover{border-color:var(--tr);color:var(--tr)}
+.ab[data-t=circle]:hover{border-color:var(--cl);color:var(--cl)}
+.ab[data-t=cone]:hover{border-color:var(--cn);color:var(--cn)}
+.ab[data-t=ellipsoid]:hover{border-color:var(--el);color:var(--el)}
+.ab[data-t=prism]:hover{border-color:var(--pr);color:var(--pr)}
+#ol{flex:1;overflow-y:auto;padding:calc(5px*var(--s))}
+#ol::-webkit-scrollbar{width:calc(3px*var(--s))}
+#ol::-webkit-scrollbar-thumb{background:var(--dim);border-radius:calc(2px*var(--s))}
+.oi{display:flex;align-items:center;gap:calc(5px*var(--s));
+  padding:calc(6px*var(--s)) calc(8px*var(--s));border-radius:var(--r1);
+  cursor:pointer;border:1px solid transparent;margin-bottom:calc(3px*var(--s));transition:.1s}
+.oi:hover{background:rgba(255,255,255,.03);border-color:var(--border)}
+.oi.sel{background:rgba(0,229,255,.06);border-color:var(--acc)}
+.oi.dis{opacity:.35}
+.dot{width:calc(8px*var(--s));height:calc(8px*var(--s));border-radius:50%;flex-shrink:0}
+.oi-info{flex:1;min-width:0}
+.oi-n{font-size:var(--f2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oi-s{font-size:var(--f0);color:var(--dim);font-family:'Share Tech Mono',monospace}
+.oi-del{background:none;border:none;color:var(--dim);cursor:pointer;
+  font-size:var(--f2);padding:calc(2px*var(--s));transition:.1s;flex-shrink:0}
+.oi-del:hover{color:var(--danger)}
+.empty-list{padding:calc(20px*var(--s)) var(--p3);text-align:center;
+  color:var(--dim);font-size:var(--f1);letter-spacing:1px;line-height:2}
+
+/* VIEWPORT */
+#vwrap{flex:1;position:relative;overflow:hidden;background:#020508}
+#sdf-canvas{display:block;width:100%;height:100%;position:absolute;top:0;left:0}
+#gizmo-canvas{display:block;width:100%;height:100%;position:absolute;top:0;left:0;pointer-events:none}
+/* HUD */
+.hud{position:absolute;pointer-events:none;font-family:'Share Tech Mono',monospace;font-size:var(--f1)}
+#hud-tl{top:calc(12px*var(--s));left:calc(12px*var(--s));color:rgba(0,229,255,.4);line-height:1.8;letter-spacing:1px}
+#hud-bl{bottom:calc(14px*var(--s));left:calc(12px*var(--s));
+  color:rgba(255,255,255,.15);line-height:1.9;letter-spacing:.5px}
+#hud-br{bottom:calc(14px*var(--s));right:calc(12px*var(--s));
+  text-align:right;color:rgba(255,255,255,.12);line-height:1.8}
+#statusbar{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  pointer-events:none;font-family:'Share Tech Mono',monospace;font-size:var(--f2);
+  color:var(--warn);letter-spacing:calc(3px*var(--s));opacity:0;transition:opacity .25s;
+  background:rgba(0,0,0,.7);padding:var(--p1) calc(14px*var(--s));border-radius:var(--r1);
+  border:1px solid rgba(255,215,0,.25);text-transform:uppercase}
+#statusbar.on{opacity:1}
+.vtbtn{position:absolute;pointer-events:all;background:rgba(9,13,21,.88);
+  border:1px solid var(--border);color:var(--dim);
+  padding:calc(4px*var(--s)) calc(10px*var(--s));border-radius:var(--r1);
+  cursor:pointer;font-family:'Share Tech Mono',monospace;
+  font-size:var(--f0);letter-spacing:1px;transition:.1s}
+.vtbtn:hover{border-color:var(--acc);color:var(--acc)}
+#vcams{top:calc(12px*var(--s));right:calc(12px*var(--s));display:flex;flex-direction:column;gap:calc(4px*var(--s))}
+
+/* RIGHT */
+#right{width:calc(272px*var(--s));flex-shrink:0;background:var(--panel);
+  border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#props{flex:1;overflow-y:auto;padding:var(--p3)}
+#props::-webkit-scrollbar{width:calc(3px*var(--s))}
+#props::-webkit-scrollbar-thumb{background:var(--dim);border-radius:calc(2px*var(--s))}
+.nosel{padding:calc(28px*var(--s)) var(--p3);text-align:center;
+  color:var(--dim);font-size:var(--f1);letter-spacing:1px;line-height:2.2}
+.pg{margin-bottom:calc(13px*var(--s))}
+.pgl{font-size:var(--f0);letter-spacing:calc(3px*var(--s));color:var(--acc);
+  text-transform:uppercase;padding-bottom:calc(4px*var(--s));
+  border-bottom:1px solid rgba(0,229,255,.1);margin-bottom:calc(7px*var(--s));
+  display:flex;align-items:center;gap:calc(5px*var(--s))}
+.pr{display:grid;grid-template-columns:calc(72px*var(--s)) 1fr;
+  align-items:center;gap:calc(5px*var(--s));margin-bottom:calc(5px*var(--s))}
+.pl{font-size:var(--f1);color:var(--dim);letter-spacing:.5px;text-transform:uppercase}
+input[type=number],input[type=text],select{
+  background:rgba(0,0,0,.55);border:1px solid var(--border);border-radius:calc(2px*var(--s));
+  color:var(--text);font-family:'Share Tech Mono',monospace;font-size:var(--f1);
+  padding:calc(5px*var(--s)) calc(6px*var(--s));width:100%;outline:none;transition:border-color .1s;
+  height:calc(26px*var(--s))}
+input:focus,select:focus{border-color:var(--acc)}
+select option{background:var(--panel)}
+input[type=checkbox]{accent-color:var(--acc);cursor:pointer;
+  width:calc(13px*var(--s));height:calc(13px*var(--s))}
+.xyz3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:calc(3px*var(--s));margin-top:calc(2px*var(--s))}
+.xf{position:relative}
+.xf .xl{position:absolute;top:50%;transform:translateY(-50%);left:calc(4px*var(--s));
+  font-size:var(--f0);pointer-events:none;z-index:1;font-family:'Share Tech Mono',monospace}
+.xf input{padding-left:calc(14px*var(--s))}
+.xf.xf-x .xl{color:var(--xc)}.xf.xf-y .xl{color:var(--yc)}.xf.xf-z .xl{color:var(--zc)}
+.sdf-section{background:rgba(0,229,255,.03);border:1px solid rgba(0,229,255,.1);
+  border-radius:var(--r1);padding:var(--p2);margin-bottom:calc(10px*var(--s))}
+.sdf-label{font-size:var(--f0);letter-spacing:calc(2px*var(--s));color:var(--acc);
+  text-transform:uppercase;margin-bottom:calc(6px*var(--s))}
+.range-row{display:grid;grid-template-columns:calc(72px*var(--s)) 1fr calc(42px*var(--s));
+  align-items:center;gap:calc(5px*var(--s));margin-bottom:calc(4px*var(--s))}
+input[type=range]{-webkit-appearance:none;background:var(--border);
+  height:calc(3px*var(--s));border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;
+  width:calc(12px*var(--s));height:calc(12px*var(--s));background:var(--acc);border-radius:50%}
+.range-val{font-family:'Share Tech Mono',monospace;font-size:var(--f1);color:var(--acc);text-align:right}
+.warn-badge{display:inline-block;background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.3);
+  color:var(--warn);font-size:var(--f0);letter-spacing:1px;
+  padding:calc(1px*var(--s)) calc(5px*var(--s));border-radius:calc(2px*var(--s));margin-left:calc(4px*var(--s))}
+.del-btn{width:100%;background:none;border:1px solid var(--border);color:var(--dim);
+  padding:calc(6px*var(--s));border-radius:var(--r1);cursor:pointer;font-size:var(--f1);
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:1px;
+  transition:.1s;margin-top:calc(7px*var(--s))}
+.del-btn:hover{border-color:var(--danger);color:var(--danger)}
+
+/* OUTPUT */
+#outarea{border-top:1px solid var(--border);flex-shrink:0;display:flex;
+  flex-direction:column;max-height:calc(200px*var(--s))}
+.outhdr{display:flex;align-items:center;justify-content:space-between;
+  padding:calc(6px*var(--s)) var(--p3);background:rgba(0,229,255,.025);border-bottom:1px solid var(--border)}
+.outtabs{display:flex;gap:calc(3px*var(--s))}
+.otab{background:none;border:1px solid var(--border);color:var(--dim);
+  padding:calc(3px*var(--s)) calc(10px*var(--s));border-radius:calc(2px*var(--s));
+  cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:var(--f0);letter-spacing:1px;transition:.1s}
+.otab:hover,.otab.act{border-color:var(--acc);color:var(--acc);background:rgba(0,229,255,.06)}
+.cpbtn{background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);color:var(--acc);
+  border-radius:calc(2px*var(--s));padding:calc(3px*var(--s)) calc(10px*var(--s));cursor:pointer;
+  font-family:'Share Tech Mono',monospace;font-size:var(--f0);letter-spacing:1px;transition:.12s}
+.cpbtn:hover{background:rgba(0,229,255,.18)}
+.cpbtn.ok{background:rgba(57,255,20,.08);border-color:rgba(57,255,20,.3);color:var(--acc3)}
+#outcode{background:#030608;padding:var(--p2) var(--p3);font-family:'Share Tech Mono',monospace;
+  font-size:var(--f0);line-height:1.75;color:#5a8aaa;overflow-y:auto;flex:1;
+  white-space:pre-wrap;word-break:break-all}
+#outcode::-webkit-scrollbar{width:calc(3px*var(--s))}
+#outcode::-webkit-scrollbar-thumb{background:var(--dim)}
+
+/* TOAST */
+#toast{position:fixed;bottom:calc(18px*var(--s));left:50%;
+  transform:translateX(-50%) translateY(8px);background:var(--acc3);color:#000;
+  padding:calc(6px*var(--s)) calc(18px*var(--s));border-radius:calc(16px*var(--s));
+  font-weight:900;font-size:var(--f1);letter-spacing:calc(2px*var(--s));
+  opacity:0;pointer-events:none;transition:all .22s;z-index:9999}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="top">
+  <div class="logo">MNDLBR<span style="color:var(--dim)"> // </span>SDF·SCENE·v3</div>
+  <div class="sep"></div>
+  <button class="tbtn tbtn-mode act" id="btn-translate" onclick="setMode('translate')">⊕ MOVE<span class="kbadge">G</span></button>
+  <button class="tbtn tbtn-mode" id="btn-rotate" onclick="setMode('rotate')">↻ ROT<span class="kbadge">R</span></button>
+  <button class="tbtn tbtn-mode" id="btn-scale" onclick="setMode('scale')">⬡ SCALE<span class="kbadge">S</span></button>
+  <div class="sep"></div>
+  <button class="tbtn tbtn-mode" id="btn-snap" onclick="toggleSnap()">⊞ SNAP<span class="kbadge">TAB</span></button>
+  <button class="tbtn tbtn-mode" id="btn-sdf" onclick="toggleSDF()">◈ SDF BLEND<span class="kbadge">V</span></button>
+  <div class="top-r">
+    <div class="scale-ctrl" title="UI Scale">
+      <span>UI</span>
+      <input type="range" min="0.7" max="2.0" step="0.05" value="1.35"
+        oninput="setScale(this.value)" id="scale-slider"/>
+      <span id="scale-lbl" style="min-width:2.5em;text-align:right">1.35×</span>
+    </div>
+    <div class="sep"></div>
+    <button class="tbtn tbtn-ghost" onclick="clearScene()">⊘ CLEAR</button>
+    <button class="tbtn tbtn-obj" onclick="downloadOBJ()">↓ OBJ</button>
+    <button class="tbtn tbtn-pri" onclick="copyFract()">⧉ COPY .FRACT</button>
+  </div>
+</div>
+
+<div id="main">
+  <div id="left">
+    <div class="ph">Primitives <span class="ct" id="ct">0</span></div>
+    <div class="add-grid" id="addgrid">
+      <button class="ab" data-t="sphere" onclick="add('sphere')"><span class="ic">●</span>SPHERE</button>
+      <button class="ab" data-t="box" onclick="add('box')"><span class="ic">▪</span>BOX</button>
+      <button class="ab" data-t="plane" onclick="add('plane')"><span class="ic">▬</span>PLANE</button>
+      <button class="ab" data-t="cylinder" onclick="add('cylinder')"><span class="ic">⬬</span>CYLNDR</button>
+      <button class="ab" data-t="torus" onclick="add('torus')"><span class="ic">◎</span>TORUS</button>
+      <button class="ab" data-t="circle" onclick="add('circle')"><span class="ic">○</span>CIRCLE</button>
+      <button class="ab" data-t="cone" onclick="add('cone')"><span class="ic">△</span>CONE</button>
+      <button class="ab" data-t="ellipsoid" onclick="add('ellipsoid')"><span class="ic">⬭</span>ELLIPS</button>
+      <button class="ab" data-t="prism" onclick="add('prism')"><span class="ic">◇</span>PRISM</button>
+      <button class="ab" style="--c:var(--wt)" onclick="add('rectangle')"><span class="ic">▭</span>RECT</button>
+      <button class="ab" style="--c:var(--wt)" onclick="add('water')"><span class="ic">≈</span>WATER</button>
+    </div>
+    <div class="ph">Scene</div>
+    <div id="ol"><div class="empty-list">Add primitives above</div></div>
+  </div>
+
+  <div id="vwrap">
+    <canvas id="sdf-canvas"></canvas>
+    <canvas id="gizmo-canvas"></canvas>
+    <div class="hud" id="hud-tl">
+      <div id="cammode-lbl">PERSPECTIVE</div>
+      <div id="sdf-lbl" style="color:var(--acc3);display:none">◈ SDF BLEND ACTIVE</div>
+      <div id="prim-count-lbl" style="color:rgba(255,255,255,.25)"></div>
+    </div>
+    <div class="hud" id="hud-bl">
+      <span style="color:rgba(0,229,255,.35)">G</span> Move &nbsp;
+      <span style="color:rgba(0,229,255,.35)">R</span> Rotate &nbsp;
+      <span style="color:rgba(0,229,255,.35)">S</span> Scale<br>
+      <span style="color:rgba(0,229,255,.35)">Del</span> Delete &nbsp;
+      <span style="color:rgba(0,229,255,.35)">Tab</span> Snap &nbsp;
+      <span style="color:rgba(0,229,255,.35)">V</span> SDF blend<br>
+      <span style="color:rgba(0,229,255,.35)">MMB/RMB</span> Orbit &nbsp;
+      <span style="color:rgba(0,229,255,.35)">Scroll</span> Zoom
+    </div>
+    <div class="hud" id="hud-br">SDF·VIEWPORT  WebGL2 Ray March<br>Viewport: Y-up  →  MDB: Z-up  (auto-remapped)<br>v2.34-dev export</div>
+    <div id="vcams">
+      <button class="vtbtn" onclick="setView('persp')">PERSP</button>
+      <button class="vtbtn" onclick="setView('top')">TOP</button>
+      <button class="vtbtn" onclick="setView('front')">FRONT</button>
+      <button class="vtbtn" onclick="setView('right')">RIGHT</button>
+      <button class="vtbtn" onclick="resetCam()">RESET</button>
+    </div>
+    <div id="statusbar">TRANSLATE</div>
+  </div>
+
+  <div id="right">
+    <div class="ph">Properties <span id="sel-type" style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--acc2)"></span></div>
+    <div id="props"><div class="nosel">← SELECT PRIMITIVE<br>TO EDIT</div></div>
+    <div id="outarea">
+      <div class="outhdr">
+        <div class="outtabs">
+          <button class="otab act" id="tab-fract" onclick="setTab('fract')">.FRACT</button>
+          <button class="otab" id="tab-obj" onclick="setTab('obj')">OBJ</button>
+        </div>
+        <button class="cpbtn" id="cpbtn" onclick="copyOutput()">COPY</button>
+      </div>
+      <div id="outcode">// Scene is empty</div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<!-- THREE.JS for gizmo overlay -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ── UI SCALE ──
+function setScale(v){
+  document.documentElement.style.setProperty('--s', v);
+  document.getElementById('scale-lbl').textContent = parseFloat(v).toFixed(2)+'×';
+  invalidateSDF();
+}
+
+// ══════════════════════════════════════════════════════
+// DATA MODEL — v2.34 primitive spec
+// ══════════════════════════════════════════════════════
+const TYPE_COLOR = {
+  sphere:'#00e5ff',box:'#ff6b35',plane:'#b44fff',cylinder:'#39ff14',
+  torus:'#ffd700',circle:'#ff69b4',cone:'#ff8c00',ellipsoid:'#00ff9d',
+  prism:'#e040fb',water:'#00bfff',rectangle:'#00ff9d'
+};
+const TYPE_HEX = {
+  sphere:0x00e5ff,box:0xff6b35,plane:0xb44fff,cylinder:0x39ff14,
+  torus:0xffd700,circle:0xff69b4,cone:0xff8c00,ellipsoid:0x00ff9d,
+  prism:0xe040fb,water:0x00bfff,rectangle:0x00ff9d
+};
+
+// Boolean operator encoding (confirmed from v2.34 .fract files)
+const BOOL_OPS = [
+  {v:0, label:'OR (Union)'},
+  {v:1, label:'AND (Intersect)'},
+  {v:2, label:'SUB (Complement)'},
+  {v:3, label:'rev SUB (B-A)'}
+];
+
+let objects=[], selId=null, idCtr=0, typeCtr={};
+let gizmoMode='translate', snapOn=false, snapVal=0.25, sdfBlend=false;
+let activeTab='fract';
+
+function uid(){ return ++idCtr; }
+function tIdx(t){ typeCtr[t]=(typeCtr[t]||0)+1; return typeCtr[t]; }
+function reIdx(){
+  const c={};
+  objects.forEach(o=>{ c[o.type]=(c[o.type]||0)+1; o.ti=c[o.type]; });
+}
+
+// ── CONFIRMED geometry defaults from v2.34 .fract reference files ──
+function defaultG(t){
+  switch(t){
+    case 'sphere':    return {radius:1};
+    case 'box':       return {sx:1, sy:1, sz:1};
+    case 'plane':     return {wall:0.05};
+    case 'cylinder':  return {radius:0.5, height:2};
+    case 'torus':     return {radius:1};          // outer ring; tube size = wall_thickness
+    case 'circle':    return {radius:1};
+    case 'cone':      return {radius:0.5, height:1.5};
+    case 'ellipsoid': return {sx:1, sy:0.6, sz:0.8}; // uses _size x y z
+    case 'prism':     return {prismAngle:60, triangleHeight:1, height:1.5}; // _prism_angle, _trangle_height (sic), _height
+    case 'rectangle': return {width:1, height:1};
+    case 'water':     return {length:0.5, amplitude:0.2, iterations:4, animSpeed:1, animProgSpeed:1};
+    default:          return {};
+  }
+}
+
+function add(type){
+  const o={
+    id:uid(), type, ti:tIdx(type),
+    name:type[0].toUpperCase()+type.slice(1)+' '+typeCtr[type],
+    px:0,py:0,pz:0,     // position (viewport Y-up space)
+    rx:0,ry:0,rz:0,     // rotation degrees
+    sx:1,sy:1,sz:1,     // scale (baked into geometry on export)
+    enabled:true,
+    empty:false,
+    matId:1,
+    calcOrder:1,
+    boolOp:0,           // 0=OR, 1=AND, 2=SUB, 3=revSUB
+    sdfEnable:false,
+    sdfDist:1.0,
+    wallThick:0.05,
+    repX:0,repY:0,repZ:0,
+    g: defaultG(type)
+  };
+  objects.push(o);
+  selId=o.id;
+  reIdx();
+  invalidateSDF();
+  refreshUI();
+}
+
+function del(id){
+  objects=objects.filter(o=>o.id!==id);
+  if(selId===id) selId=objects.length?objects[objects.length-1].id:null;
+  typeCtr={}; objects.forEach(o=>{ typeCtr[o.type]=(typeCtr[o.type]||0)+1; });
+  reIdx();
+  invalidateSDF();
+  refreshUI();
+}
+
+function getSel(){ return objects.find(o=>o.id===selId)||null; }
+function clearScene(){ objects=[]; selId=null; typeCtr={}; idCtr=0; invalidateSDF(); refreshUI(); }
+function snp(v){ return snapOn?Math.round(v/snapVal)*snapVal:v; }
+function toggleSnap(){
+  snapOn=!snapOn;
+  document.getElementById('btn-snap').classList.toggle('act',snapOn);
+  showSt(snapOn?'SNAP ON ('+snapVal+')':'SNAP OFF');
+}
+function toggleSDF(){
+  sdfBlend=!sdfBlend;
+  document.getElementById('btn-sdf').classList.toggle('act',sdfBlend);
+  document.getElementById('sdf-lbl').style.display=sdfBlend?'block':'none';
+  invalidateSDF();
+  showSt(sdfBlend?'SDF BLEND ON':'SDF BLEND OFF');
+}
+
+// ══════════════════════════════════════════════════════
+// WEBGL2 SDF RAY-MARCH VIEWPORT
+// ══════════════════════════════════════════════════════
+const sdfC = document.getElementById('sdf-canvas');
+const gl = sdfC.getContext('webgl2',{antialias:false});
+
+const VERT_SRC = `#version 300 es
+in vec2 a_pos;
+out vec2 v_uv;
+void main(){
+  v_uv = a_pos * 0.5 + 0.5;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}`;
+
+// Fragment shader — SDF ray marcher
+// Primitives injected dynamically via uniform arrays
+const FRAG_SRC = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+out vec4 fragColor;
+
+// Camera
+uniform vec3  u_camPos;
+uniform vec3  u_camFwd;
+uniform vec3  u_camRight;
+uniform vec3  u_camUp;
+uniform float u_fov;
+uniform vec2  u_res;
+uniform int   u_numPrims;
+uniform float u_time;
+uniform bool  u_sdfBlend;
+uniform int   u_selId;  // -1 if none
+
+// Primitive data (max 32)
+#define MAX_P 32
+uniform int   u_ptype[MAX_P];   // 0=sphere,1=box,2=plane,3=cyl,4=torus,5=circle,6=cone,7=ellipsoid,8=prism
+uniform vec3  u_ppos[MAX_P];
+uniform vec3  u_prot[MAX_P];    // euler radians
+uniform vec3  u_pscl[MAX_P];
+uniform vec4  u_pgeom[MAX_P];   // type-specific: sphere=radius, box=size.xyz, etc
+uniform vec4  u_pgeom2[MAX_P];  // extra: torus=(outerR,innerR), ellipsoid=(rx,ry,rz)
+uniform float u_psdfDist[MAX_P];
+uniform bool  u_psdfOn[MAX_P];
+uniform bool  u_penabled[MAX_P];
+uniform int   u_pid[MAX_P];
+
+// ── SDF PRIMITIVES ── (all defined with Y as the "up/height" axis internally)
+float sdSphere(vec3 p, float r){ return length(p)-r; }
+float sdBox(vec3 p, vec3 b){ vec3 q=abs(p)-b; return length(max(q,0.))+min(max(q.x,max(q.y,q.z)),0.); }
+float sdPlane(vec3 p){ return p.y; } // infinite plane at Y=0, normal +Y
+// Cylinder: axis along Y, radius r, half-height h
+float sdCylinder(vec3 p, float r, float h){ vec2 d=abs(vec2(length(p.xz),p.y))-vec2(r,h*0.5); return min(max(d.x,d.y),0.)+length(max(d,0.)); }
+// Torus: ring in XZ plane, main radius R, tube radius r
+float sdTorus(vec3 p, float R, float r){ return length(vec2(length(p.xz)-R,p.y))-r; }
+// Circle/disk: in XZ plane, radius r, thin
+float sdCircle(vec3 p, float r){ float d=length(p.xz)-r; return length(vec2(d,p.y)); }
+// Cone: base at Y=0 radius r, tip at Y=h. Properly capped.
+float sdCone(vec3 p, float r, float h){
+  vec2 q=vec2(length(p.xz), p.y);
+  float l=length(vec2(r,h));
+  // Cone slope normal
+  float d1=max(dot(q,vec2(h,-r))/l, -q.y); // below base / outside slope
+  float d2=max(dot(q,vec2(-h,r))/l, q.y-h); // above tip / inside slope
+  return max(d1,d2);
+}
+float sdEllipsoid(vec3 p, vec3 r){ float k0=length(p/r); float k1=length(p/(r*r)); return k0*(k0-1.)/k1; }
+// Prism: triangular cross-section. prismAngle=apex angle (deg), triH=triangle height, extH=extrusion length
+// Triangle lies in XZ plane, extruded along Y
+float sdPrism(vec3 p, float halfAngleRad, float triH, float extH){
+  // Isoceles triangle in XZ plane
+  vec3 q=abs(p);
+  float cotA=cos(halfAngleRad)/sin(halfAngleRad);
+  float d=max(q.y-extH*0.5, max(q.x*cotA+p.z*0.5-triH*0.5, -p.z)-0.0);
+  return d;
+}
+// Water: infinite wave plane along XZ, animated by time
+float sdWater(vec3 p, float waveLen, float amp, float t){
+  float wl=max(waveLen,0.01);
+  float wave = sin(p.x/wl*6.2832 + t*2.0)*amp
+             + sin(p.z/wl*6.2832*0.7 + t*1.3)*amp*0.5
+             + sin((p.x+p.z)/wl*6.2832*0.5 + t*0.8)*amp*0.25;
+  return p.y - wave;
+}
+// Rectangle: flat XZ plane with finite width/height
+float sdRectangle(vec3 p, float w, float h){
+  vec2 d=abs(vec2(p.x,p.z))-vec2(w*0.5,h*0.5);
+  return length(max(d,0.))+min(max(d.x,d.y),0.) + abs(p.y)*0.1;
+}
+
+// ── SMOOTH UNION ──
+float smin(float a, float b, float k){
+  float h=max(k-abs(a-b),0.)/k;
+  return min(a,b)-h*h*k*.25;
+}
+
+// ── ROTATION MATRIX — Mandelbulber ZXY order (alpha=Z, beta=X, gamma=Y) ──
+// e = vec3(alpha_deg, beta_deg, gamma_deg) already in radians
+// Mandelbulber applies R = Rz * Rx * Ry to go from local->world
+// We need world->local = transpose(Rz*Rx*Ry) = Ry^T * Rx^T * Rz^T
+mat3 mdbRot(vec3 e){
+  // e.x = alpha (Z rotation), e.y = beta (X rotation), e.z = gamma (Y rotation)
+  float ca=cos(e.x),sa=sin(e.x); // Z
+  float cb=cos(e.y),sb=sin(e.y); // X
+  float cg=cos(e.z),sg=sin(e.z); // Y
+  // Build Rz*Rx*Ry then transpose
+  mat3 Rz=mat3(ca,-sa,0., sa,ca,0., 0.,0.,1.);
+  mat3 Rx=mat3(1.,0.,0., 0.,cb,-sb, 0.,sb,cb);
+  mat3 Ry=mat3(cg,0.,sg, 0.,1.,0., -sg,0.,cg);
+  return transpose(Rz*Rx*Ry); // world->local
+}
+
+// ── SCENE SDF ──
+// NOTE: Viewport is Y-up. Mandelbulber is Z-up.
+// Primitives are authored in Mandelbulber space (Z-up).
+// We remap: viewport_Y <-> mandelbulber_Z on input to primitives.
+// i.e. for a primitive at mdb pos (px,py,pz), in viewport it sits at (px,pz,py)
+// The uniforms u_ppos are already stored in viewport Y-up space.
+// Rotations in u_prot are Mandelbulber angles (ZXY) and applied via mdbRot.
+struct Hit { float d; int id; };
+
+Hit sceneSDF(vec3 p){
+  float d=1e9; int hitId=-1;
+  for(int i=0;i<MAX_P;i++){
+    if(i>=u_numPrims) break;
+    if(!u_penabled[i]) continue;
+    // Transform to local space
+    vec3 lp = mdbRot(u_prot[i]) * (p - u_ppos[i]);
+    // Scale
+    lp /= max(u_pscl[i], vec3(0.001));
+    float dd=1e9;
+    int t=u_ptype[i];
+    // 0=sphere,1=box,2=plane,3=cyl,4=torus,5=circle,6=cone,7=ellipsoid,8=prism,9=water,10=rectangle
+    if(t==0) dd=sdSphere(lp, u_pgeom[i].x);
+    else if(t==1) dd=sdBox(lp, u_pgeom[i].xyz);
+    else if(t==2) dd=sdPlane(lp);
+    else if(t==3) dd=sdCylinder(lp, u_pgeom[i].x, u_pgeom[i].y);
+    else if(t==4) dd=sdTorus(lp, u_pgeom[i].x, u_pgeom[i].y);
+    else if(t==5) dd=sdCircle(lp, u_pgeom[i].x);
+    else if(t==6) dd=sdCone(lp, u_pgeom[i].x, u_pgeom[i].y);
+    else if(t==7) dd=sdEllipsoid(lp, u_pgeom[i].xyz);
+    else if(t==8) dd=sdPrism(lp, u_pgeom[i].x, u_pgeom[i].y, u_pgeom[i].z);
+    else if(t==9) dd=sdWater(lp, u_pgeom[i].x, u_pgeom[i].y, u_time);
+    else if(t==10) dd=sdRectangle(lp, u_pgeom[i].x, u_pgeom[i].y);
+    // Scale is baked into geomVec — no additional scale correction needed
+    if(u_sdfBlend && u_psdfOn[i] && d<1e8){
+      d=smin(d,dd,u_psdfDist[i]);
+      // Approximate id tracking — closest wins
+      if(dd<d) hitId=u_pid[i];
+    } else {
+      if(dd<d){ d=dd; hitId=u_pid[i]; }
+    }
+  }
+  return Hit(d, hitId);
+}
+
+vec3 calcNormal(vec3 p){
+  float e=0.001;
+  Hit h0=sceneSDF(p); // unused but needed to avoid warning
+  return normalize(vec3(
+    sceneSDF(p+vec3(e,0,0)).d - sceneSDF(p-vec3(e,0,0)).d,
+    sceneSDF(p+vec3(0,e,0)).d - sceneSDF(p-vec3(0,e,0)).d,
+    sceneSDF(p+vec3(0,0,e)).d - sceneSDF(p-vec3(0,0,e)).d
+  ));
+}
+
+// ── COLORS per primitive type ──
+vec3 typeColor(int t){
+  if(t==0) return vec3(0.0,0.9,1.0);   // sphere - cyan
+  if(t==1) return vec3(1.0,0.42,0.21); // box - orange
+  if(t==2) return vec3(0.71,0.31,1.0); // plane - purple
+  if(t==3) return vec3(0.22,1.0,0.08); // cylinder - green
+  if(t==4) return vec3(1.0,0.84,0.0);  // torus - gold
+  if(t==5) return vec3(1.0,0.41,0.71); // circle - pink
+  if(t==6) return vec3(1.0,0.55,0.0);  // cone - orange
+  if(t==7) return vec3(0.0,1.0,0.62);  // ellipsoid - mint
+  if(t==8) return vec3(0.88,0.25,0.98);// prism - violet
+  if(t==9) return vec3(0.0,0.75,1.0);  // water - blue
+  return vec3(0.5);
+}
+
+int getTypeOfId(int id){
+  for(int i=0;i<MAX_P;i++){
+    if(i>=u_numPrims) break;
+    if(u_pid[i]==id) return u_ptype[i];
+  }
+  return -1;
+}
+
+void main(){
+  vec2 uv = (v_uv*2.-1.) * vec2(u_res.x/u_res.y, 1.0);
+  float fov = tan(radians(u_fov*0.5));
+  vec3 rayDir = normalize(u_camFwd + uv.x*fov*u_camRight + uv.y*fov*u_camUp);
+  vec3 ro = u_camPos;
+
+  // Background gradient
+  vec3 bgCol = mix(vec3(0.02,0.04,0.07), vec3(0.05,0.08,0.12), v_uv.y);
+  vec3 gridCol = bgCol;
+
+  // Grid on Y=0 plane (viewport Y-up ground, = Mandelbulber Z=0 when exported)
+  float t_grid = -ro.y/rayDir.y;
+  if(t_grid>0.001 && t_grid<200.0){
+    vec3 gp = ro + rayDir*t_grid;
+    float gx=abs(fract(gp.x-.5)-.5);
+    float gz=abs(fract(gp.z-.5)-.5);
+    float gw=fwidth(gp.x);
+    float gv=max(smoothstep(gw,0.,gx), smoothstep(gw,0.,gz));
+    // Major grid
+    float mgx=abs(fract(gp.x/5.-.5)-.5)*5.;
+    float mgz=abs(fract(gp.z/5.-.5)-.5)*5.;
+    float mgv=max(smoothstep(gw*5.,0.,mgx), smoothstep(gw*5.,0.,mgz));
+    float fade=1.-smoothstep(10.,40.,t_grid);
+    gridCol = mix(bgCol, vec3(0.08,0.14,0.22)*1.5, gv*0.4*fade);
+    gridCol = mix(gridCol, vec3(0.1,0.18,0.3)*1.5, mgv*0.3*fade);
+    // Axis lines
+    if(abs(gp.z)<0.02*t_grid*0.1) gridCol=mix(gridCol,vec3(1.,0.27,0.4),smoothstep(0.04,0.,abs(gp.z))*fade);
+    if(abs(gp.x)<0.02*t_grid*0.1) gridCol=mix(gridCol,vec3(0.27,1.,0.53),smoothstep(0.04,0.,abs(gp.x))*fade);
+  }
+  fragColor = vec4(gridCol, 1.0);
+  if(u_numPrims==0) return;
+
+  // Ray march
+  float td=0.001;
+  bool hit=false;
+  int hitId=-1;
+  for(int i=0;i<128;i++){
+    vec3 p=ro+rayDir*td;
+    Hit h=sceneSDF(p);
+    if(h.d<0.002*(1.+td*0.05)){ hit=true; hitId=h.id; break; }
+    if(td>200.) break;
+    td+=max(h.d,0.001);
+  }
+
+  if(hit){
+    vec3 p=ro+rayDir*td;
+    vec3 n=calcNormal(p);
+    int pt=getTypeOfId(hitId);
+    vec3 baseCol=typeColor(pt);
+
+    // Lighting
+    vec3 lightDir=normalize(vec3(0.6,1.,0.5));
+    float diff=max(dot(n,lightDir),0.);
+    vec3 viewDir=normalize(ro-p);
+    float spec=pow(max(dot(reflect(-lightDir,n),viewDir),0.),32.);
+    float ao=1.0; // simple no-AO
+    vec3 col = baseCol*(0.15+diff*0.7) + vec3(spec*0.4);
+    // Rim light
+    float rim=pow(1.-max(dot(n,viewDir),0.),3.);
+    col+=baseCol*rim*0.25;
+    // Fog
+    float fog=1.-exp(-td*0.04);
+    col=mix(col,bgCol,fog);
+    // Selection highlight
+    if(hitId==u_selId){
+      col=mix(col,vec3(1.0),0.12+(sin(u_time*4.)*0.06));
+      col+=baseCol*0.3;
+    }
+    fragColor=vec4(col,1.);
+  }
+}`;
+
+function compileShader(gl, type, src){
+  const s=gl.createShader(type);
+  gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){
+    console.error(gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+
+let sdfProg=null;
+function buildSdfProgram(){
+  const vs=compileShader(gl,gl.VERTEX_SHADER,VERT_SRC);
+  const fs=compileShader(gl,gl.FRAGMENT_SHADER,FRAG_SRC);
+  const p=gl.createProgram();
+  gl.attachShader(p,vs); gl.attachShader(p,fs);
+  gl.bindAttribLocation(p,0,'a_pos');
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
+  return p;
+}
+sdfProg=buildSdfProgram();
+
+// Fullscreen quad
+const quadBuf=gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER,quadBuf);
+gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+const vao=gl.createVertexArray();
+gl.bindVertexArray(vao);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+
+// Get uniforms
+function ul(name){ return gl.getUniformLocation(sdfProg,name); }
+
+const U={
+  camPos:ul('u_camPos'),camFwd:ul('u_camFwd'),camRight:ul('u_camRight'),
+  camUp:ul('u_camUp'),fov:ul('u_fov'),res:ul('u_res'),
+  num:ul('u_numPrims'),time:ul('u_time'),blend:ul('u_sdfBlend'),selId:ul('u_selId'),
+  ptype:ul('u_ptype[0]'), ppos:ul('u_ppos[0]'), prot:ul('u_prot[0]'),
+  pscl:ul('u_pscl[0]'), pgeom:ul('u_pgeom[0]'), pgeom2:ul('u_pgeom2[0]'),
+  psdfDist:ul('u_psdfDist[0]'), psdfOn:ul('u_psdfOn[0]'),
+  penabled:ul('u_penabled[0]'), pid:ul('u_pid[0]')
+};
+
+// Camera state
+const CAM={theta:-0.6,phi:1.1,r:9,cx:0,cy:0,cz:0};
+function camVecs(){
+  const {theta,phi,r,cx,cy,cz}=CAM;
+  const pos=new THREE.Vector3(
+    cx+r*Math.sin(phi)*Math.sin(theta),
+    cy+r*Math.cos(phi),
+    cz+r*Math.sin(phi)*Math.cos(theta)
+  );
+  const tgt=new THREE.Vector3(cx,cy,cz);
+  const fwd=new THREE.Vector3().subVectors(tgt,pos).normalize();
+  const up=new THREE.Vector3(0,1,0);
+  const right=new THREE.Vector3().crossVectors(fwd,up).normalize();
+  const upv=new THREE.Vector3().crossVectors(right,fwd).normalize();
+  return {pos,fwd,right,up:upv};
+}
+
+function typeIndex(t){
+  const m={sphere:0,box:1,plane:2,cylinder:3,torus:4,circle:5,cone:6,ellipsoid:7,prism:8,water:9,rectangle:10};
+  return m[t]??0;
+}
+
+function geomVec(o){
+  const g=o.g;
+  // Scale remap: vp sy(Y height) → mdb Z height; vp sz(depth) → mdb Y
+  const msX=o.sx, msY=o.sz, msZ=o.sy;
+  switch(o.type){
+    case 'sphere':    return [(g.radius||1)*Math.max(msX,msY,msZ), 0, 0, 0];
+    case 'box':       return [(g.sx||1)*msX, (g.sy||1)*msY, (g.sz||1)*msZ, 0];
+    case 'plane':     return [0, 0, 0, 0];
+    case 'cylinder':  return [(g.radius||.5)*Math.max(msX,msY), (g.height||2)*msZ, 0, 0];
+    case 'torus':     return [(g.radius||1)*Math.max(msX,msY), (o.wallThick||0.2)*Math.min(msX,msY,msZ), 0, 0];
+    case 'circle':    return [(g.radius||1)*Math.max(msX,msY), 0, 0, 0];
+    case 'cone':      return [(g.radius||.5)*Math.max(msX,msY), (g.height||1.5)*msZ, 0, 0];
+    case 'ellipsoid': return [(g.sx||1)*msX, (g.sy||.6)*msY, (g.sz||.8)*msZ, 0];
+    // prism: [halfAngle_rad, triangleHeight, extrusionHeight, 0]
+    case 'prism':     return [((g.prismAngle||60)/2)*Math.PI/180, (g.triangleHeight||1)*Math.max(msX,msY), (g.height||1.5)*msZ, 0];
+    case 'water':     return [(g.length||0.5)*Math.max(msX,msZ), (g.amplitude||0.2)*msZ, 0, 0];
+    case 'rectangle': return [(g.width||1)*Math.max(msX,msY), (g.height||1)*msZ, 0, 0];
+    default:          return [1, 0, 0, 0];
+  }
+}
+
+function d2r(d){return d*Math.PI/180;}
+
+let needsRedraw=true;
+let sdfTime=0;
+function invalidateSDF(){needsRedraw=true;}
+function hasWater(){ return objects.some(o=>o.type==='water'&&o.enabled); }
+
+function renderSDF(timestamp){
+  sdfTime=timestamp*0.001;
+  // Always redraw if water present (animated), otherwise only on demand
+  if(hasWater()) needsRedraw=true;
+  const vp=document.getElementById('vwrap');
+  const W=vp.clientWidth, H=vp.clientHeight;
+  if(sdfC.width!==W||sdfC.height!==H){
+    sdfC.width=W; sdfC.height=H;
+    needsRedraw=true;
+  }
+  if(!needsRedraw&&!selId){ requestAnimationFrame(renderSDF); return; }
+  needsRedraw=false;
+
+  gl.viewport(0,0,W,H);
+  gl.useProgram(sdfProg);
+  gl.bindVertexArray(vao);
+
+  const cv=camVecs();
+  gl.uniform3f(U.camPos,cv.pos.x,cv.pos.y,cv.pos.z);
+  gl.uniform3f(U.camFwd,cv.fwd.x,cv.fwd.y,cv.fwd.z);
+  gl.uniform3f(U.camRight,cv.right.x,cv.right.y,cv.right.z);
+  gl.uniform3f(U.camUp,cv.up.x,cv.up.y,cv.up.z);
+  gl.uniform1f(U.fov,55);
+  gl.uniform2f(U.res,W,H);
+  gl.uniform1i(U.num, Math.min(objects.length,32));
+  gl.uniform1f(U.time,sdfTime);
+  gl.uniform1i(U.blend,sdfBlend?1:0);
+  gl.uniform1i(U.selId,selId||(-1));
+
+  // Pack primitive data
+  const n=Math.min(objects.length,32);
+  const ptypes=new Int32Array(32), pids=new Int32Array(32);
+  const ppos=new Float32Array(96), prot=new Float32Array(96);
+  const pscl=new Float32Array(96);
+  const pgeom=new Float32Array(128), pgeom2=new Float32Array(128);
+  const psdfDist=new Float32Array(32);
+  const psdfOn=new Int32Array(32), penabled=new Int32Array(32);
+
+  objects.slice(0,32).forEach((o,i)=>{
+    ptypes[i]=typeIndex(o.type);
+    pids[i]=o.id;
+    // Position stays in viewport Y-up space (GLSL renders in Y-up)
+    ppos[i*3]=o.px; ppos[i*3+1]=o.py; ppos[i*3+2]=o.pz;
+    // Rotation: mdbRot expects (alpha=Z-rot, beta=X-rot, gamma=Y-rot) in radians
+    // Viewport: rx=X-pitch, ry=Y-yaw, rz=Z-roll -> alpha=rz, beta=rx, gamma=ry
+    prot[i*3]=d2r(o.rz);   // alpha: Z
+    prot[i*3+1]=d2r(o.rx); // beta: X
+    prot[i*3+2]=d2r(o.ry); // gamma: Y
+    // Scale: geomVec already bakes scale into geometry dimensions, so send 1.0 to avoid double-scaling
+    pscl[i*3]=1.0; pscl[i*3+1]=1.0; pscl[i*3+2]=1.0;
+    const gv=geomVec(o);
+    pgeom[i*4]=gv[0]; pgeom[i*4+1]=gv[1]; pgeom[i*4+2]=gv[2]; pgeom[i*4+3]=gv[3];
+    psdfDist[i]=o.sdfDist||1;
+    psdfOn[i]=o.sdfEnable?1:0;
+    penabled[i]=o.enabled?1:0;
+  });
+
+  gl.uniform1iv(ul('u_ptype[0]'),ptypes);
+  gl.uniform1iv(ul('u_pid[0]'),pids);
+  gl.uniform3fv(ul('u_ppos[0]'),ppos);
+  gl.uniform3fv(ul('u_prot[0]'),prot);
+  gl.uniform3fv(ul('u_pscl[0]'),pscl);
+  gl.uniform4fv(ul('u_pgeom[0]'),pgeom);
+  gl.uniform1fv(ul('u_psdfDist[0]'),psdfDist);
+  gl.uniform1iv(ul('u_psdfOn[0]'),psdfOn);
+  gl.uniform1iv(ul('u_penabled[0]'),penabled);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  requestAnimationFrame(renderSDF);
+}
+requestAnimationFrame(renderSDF);
+
+// ══════════════════════════════════════════════════════
+// THREE.JS GIZMO OVERLAY
+// ══════════════════════════════════════════════════════
+const gc=document.getElementById('gizmo-canvas');
+const gRenderer=new THREE.WebGLRenderer({canvas:gc,antialias:true,alpha:true});
+gRenderer.setClearColor(0,0);
+const gScene=new THREE.Scene();
+const gCam=new THREE.PerspectiveCamera(55,1,0.01,1000);
+
+const GC={x:0xff4466,y:0x44ff88,z:0x4499ff};
+const GHL={x:0xffaaaa,y:0xaaffcc,z:0xaaccff};
+const GSCALE=1.4;
+
+let gizmoGrp=null;
+let gHover=null, gDrag=false, gAxis=null;
+let gDragStart=null, gDragObjStart=null;
+
+function syncGCam(){
+  const cv=camVecs();
+  gCam.position.set(cv.pos.x,cv.pos.y,cv.pos.z);
+  gCam.lookAt(0,0,0);
+  // We need the actual target
+  gCam.lookAt(CAM.cx,CAM.cy,CAM.cz);
+}
+
+function buildTGizmo(){
+  const g=new THREE.Group();
+  [{a:'x',c:GC.x,rz:-Math.PI/2},{a:'y',c:GC.y,rz:0},{a:'z',c:GC.z,rx:Math.PI/2}].forEach(({a,c,rz,rx})=>{
+    const m=new THREE.MeshBasicMaterial({color:c,depthTest:false});
+    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.013,.013,.65,8),m);
+    const cone=new THREE.Mesh(new THREE.ConeGeometry(.055,.14,8),m);
+    shaft.position.y=.325; cone.position.y=.72;
+    shaft.userData.gA=a; cone.userData.gA=a;
+    const ag=new THREE.Group();
+    ag.add(shaft); ag.add(cone); ag.userData.gA=a;
+    if(a==='x') ag.rotation.z=-Math.PI/2;
+    if(a==='z') ag.rotation.x=Math.PI/2;
+    g.add(ag);
+  });
+  const cs=new THREE.Mesh(new THREE.SphereGeometry(.055,8,8),new THREE.MeshBasicMaterial({color:0xffffff,depthTest:false}));
+  cs.userData.gA='all'; g.add(cs);
+  return g;
+}
+function buildRGizmo(){
+  const g=new THREE.Group();
+  [{a:'x',c:GC.x,rx:0,ry:Math.PI/2,rz:0},{a:'y',c:GC.y,rx:Math.PI/2,ry:0,rz:0},{a:'z',c:GC.z,rx:0,ry:0,rz:0}].forEach(({a,c,rx,ry,rz})=>{
+    const m=new THREE.MeshBasicMaterial({color:c,depthTest:false,side:THREE.DoubleSide});
+    const r=new THREE.Mesh(new THREE.TorusGeometry(.85,.016,8,64),m);
+    r.rotation.set(rx,ry,rz); r.userData.gA=a;
+    const hm=new THREE.MeshBasicMaterial({visible:false,depthTest:false,side:THREE.DoubleSide});
+    const h=new THREE.Mesh(new THREE.TorusGeometry(.85,.05,6,64),hm);
+    h.rotation.set(rx,ry,rz); h.userData.gA=a;
+    g.add(r); g.add(h);
+  });
+  return g;
+}
+function buildSGizmo(){
+  const g=new THREE.Group();
+  [{a:'x',c:GC.x},{a:'y',c:GC.y},{a:'z',c:GC.z}].forEach(({a,c})=>{
+    const m=new THREE.MeshBasicMaterial({color:c,depthTest:false});
+    const s=new THREE.Mesh(new THREE.CylinderGeometry(.011,.011,.65,6),m);
+    const b=new THREE.Mesh(new THREE.BoxGeometry(.095,.095,.095),m);
+    s.position.y=.325; b.position.y=.74; s.userData.gA=a; b.userData.gA=a;
+    const ag=new THREE.Group(); ag.add(s); ag.add(b); ag.userData.gA=a;
+    if(a==='x') ag.rotation.z=-Math.PI/2;
+    if(a==='z') ag.rotation.x=Math.PI/2;
+    g.add(ag);
+  });
+  const cb=new THREE.Mesh(new THREE.BoxGeometry(.09,.09,.09),new THREE.MeshBasicMaterial({color:0xffffff,depthTest:false}));
+  cb.userData.gA='all'; g.add(cb);
+  return g;
+}
+
+const gBuilders={translate:buildTGizmo,rotate:buildRGizmo,scale:buildSGizmo};
+function rebuildGizmo(){
+  if(gizmoGrp){gScene.remove(gizmoGrp);gizmoGrp=null;}
+  const o=getSel(); if(!o) return;
+  gizmoGrp=gBuilders[gizmoMode]();
+  gizmoGrp.renderOrder=999;
+  posGizmo(o);
+  gScene.add(gizmoGrp);
+}
+function posGizmo(o){
+  if(!gizmoGrp) return;
+  gizmoGrp.position.set(o.px,o.py,o.pz);
+  const cv=camVecs();
+  const d=cv.pos.distanceTo(new THREE.Vector3(o.px,o.py,o.pz));
+  gizmoGrp.scale.setScalar(d*.15*GSCALE);
+}
+function hlAxis(a,on){
+  if(!gizmoGrp) return;
+  gizmoGrp.traverse(obj=>{
+    if(obj.userData.gA===a&&obj.material){
+      obj.material.color.setHex(on?GHL[a]||0xffffff:GC[a]||0xffffff);
+    }
+  });
+}
+
+// Gizmo raycaster
+const gRay=new THREE.Raycaster();
+function ndcOf(e){
+  const r=gc.getBoundingClientRect();
+  return new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
+}
+
+function resizeGizmo(){
+  const vp=document.getElementById('vwrap');
+  const W=vp.clientWidth, H=vp.clientHeight;
+  gRenderer.setSize(W,H,false);
+  gc.style.width=W+'px'; gc.style.height=H+'px';
+  gCam.aspect=W/H;
+  gCam.updateProjectionMatrix();
+}
+
+function gizmoRenderLoop(){
+  requestAnimationFrame(gizmoRenderLoop);
+  syncGCam();
+  resizeGizmo();
+  gRenderer.render(gScene,gCam);
+}
+gizmoRenderLoop();
+
+// ══════════════════════════════════════════════════════
+// INPUT
+// ══════════════════════════════════════════════════════
+let mDown=false, mBtn=-1, mLX=0, mLY=0;
+let mMoved=false, mDnPos={x:0,y:0};
+const vwrap=document.getElementById('vwrap');
+
+vwrap.addEventListener('contextmenu',e=>e.preventDefault());
+
+vwrap.addEventListener('mousedown',e=>{
+  mDown=true; mBtn=e.button;
+  mLX=e.clientX; mLY=e.clientY;
+  mDnPos={x:e.clientX,y:e.clientY}; mMoved=false;
+
+  if(e.button===0){
+    const ndc=ndcOf(e);
+    gRay.setFromCamera(ndc,gCam);
+    if(gizmoGrp){
+      const hits=gRay.intersectObjects(gizmoGrp.children,true);
+      if(hits.length>0){
+        let obj=hits[0].object;
+        while(obj&&!obj.userData.gA) obj=obj.parent;
+        if(obj&&obj.userData.gA){
+          gDrag=true; gAxis=obj.userData.gA;
+          const o=getSel();
+          if(o){
+            gDragStart={x:e.clientX,y:e.clientY};
+            gDragObjStart={px:o.px,py:o.py,pz:o.pz,rx:o.rx,ry:o.ry,rz:o.rz,sx:o.sx,sy:o.sy,sz:o.sz};
+          }
+          hlAxis(gAxis,true);
+          showSt(gizmoMode.toUpperCase()+' · '+gAxis.toUpperCase());
+          e.stopPropagation(); return;
+        }
+      }
+    }
+  }
+});
+
+window.addEventListener('mousemove',e=>{
+  const dx=e.clientX-mLX, dy=e.clientY-mLY;
+  if(Math.abs(e.clientX-mDnPos.x)>3||Math.abs(e.clientY-mDnPos.y)>3) mMoved=true;
+
+  if(gDrag&&gAxis){
+    const o=getSel();
+    if(o){
+      const tdx=e.clientX-gDragStart.x, tdy=e.clientY-gDragStart.y;
+      const sens=CAM.r*0.004;
+      const drag=(Math.abs(tdx)>Math.abs(tdy)?tdx:-tdy);
+      if(gizmoMode==='translate'){
+        if(gAxis==='x') o.px=snp(gDragObjStart.px+drag*sens);
+        else if(gAxis==='y') o.py=snp(gDragObjStart.py+drag*sens);
+        else if(gAxis==='z') o.pz=snp(gDragObjStart.pz+drag*sens);
+        else{ o.px+=dx*sens; o.py-=dy*sens; }
+      } else if(gizmoMode==='rotate'){
+        const rd=drag*0.8;
+        if(gAxis==='x') o.rx=gDragObjStart.rx+rd;
+        else if(gAxis==='y') o.ry=gDragObjStart.ry+rd;
+        else if(gAxis==='z') o.rz=gDragObjStart.rz+rd;
+      } else if(gizmoMode==='scale'){
+        const sf=Math.max(0.001,1+(Math.abs(tdx)>Math.abs(tdy)?tdx:-tdy)*0.005);
+        if(gAxis==='x') o.sx=Math.max(.001,gDragObjStart.sx*sf);
+        else if(gAxis==='y') o.sy=Math.max(.001,gDragObjStart.sy*sf);
+        else if(gAxis==='z') o.sz=Math.max(.001,gDragObjStart.sz*sf);
+        else{ const u=Math.max(.001,sf); o.sx=gDragObjStart.sx*u; o.sy=gDragObjStart.sy*u; o.sz=gDragObjStart.sz*u; }
+      }
+      posGizmo(o);
+      invalidateSDF();
+      refreshOutput();
+    }
+    mLX=e.clientX; mLY=e.clientY; return;
+  }
+
+  // Orbit
+  if(mDown&&(mBtn===1||mBtn===2)){
+    CAM.theta-=dx*0.007;
+    CAM.phi=Math.max(.02,Math.min(Math.PI-.02,CAM.phi+dy*0.007));
+    invalidateSDF();
+  }
+  if(mDown&&mBtn===0&&e.shiftKey&&!gDrag){
+    const cv=camVecs();
+    const f=CAM.r*0.002;
+    CAM.cx-=cv.right.x*dx*f; CAM.cz-=cv.right.z*dx*f; CAM.cy+=dy*f;
+    invalidateSDF();
+  }
+
+  // Gizmo hover
+  if(!mDown){
+    const ndc=ndcOf(e);
+    gRay.setFromCamera(ndc,gCam);
+    let hov=null;
+    if(gizmoGrp){
+      const hits=gRay.intersectObjects(gizmoGrp.children,true);
+      if(hits.length>0){
+        let obj=hits[0].object;
+        while(obj&&!obj.userData.gA) obj=obj.parent;
+        if(obj) hov=obj.userData.gA;
+      }
+    }
+    if(hov!==gHover){
+      if(gHover) hlAxis(gHover,false);
+      gHover=hov;
+      if(gHover) hlAxis(gHover,true);
+      gc.style.cursor=hov?'pointer':'default';
+    }
+  }
+  mLX=e.clientX; mLY=e.clientY;
+});
+
+window.addEventListener('mouseup',e=>{
+  if(gDrag){
+    gDrag=false;
+    if(gAxis) hlAxis(gAxis,false);
+    gAxis=null; hideSt();
+    refreshUI(); return;
+  }
+  if(e.button===0&&!mMoved){
+    // Select by SDF ray — find closest primitive to click ray
+    const cv=camVecs();
+    const r=sdfC.getBoundingClientRect();
+    const ux=((e.clientX-r.left)/r.width)*2-1;
+    const uy=-((e.clientY-r.top)/r.height)*2+1;
+    const ar=r.width/r.height;
+    const fov=Math.tan(55*Math.PI/360);
+    const rd=new THREE.Vector3(ux*fov*ar,uy*fov,1).normalize();
+    // Transform by camera orientation
+    const dir=new THREE.Vector3(
+      rd.x*cv.right.x+rd.y*cv.up.x+rd.z*cv.fwd.x,
+      rd.x*cv.right.y+rd.y*cv.up.y+rd.z*cv.fwd.y,
+      rd.x*cv.right.z+rd.y*cv.up.z+rd.z*cv.fwd.z
+    ).normalize();
+    // Simple: find object whose center is closest to ray
+    let best=null, bestD=0.5;
+    const rp=cv.pos;
+    objects.forEach(o=>{
+      const op=new THREE.Vector3(o.px,o.py,o.pz);
+      const toObj=new THREE.Vector3().subVectors(op,rp);
+      const t=toObj.dot(dir);
+      if(t>0){
+        const proj=new THREE.Vector3().copy(dir).multiplyScalar(t).add(rp);
+        const dist=proj.distanceTo(op);
+        if(dist<bestD){ bestD=dist; best=o.id; }
+      }
+    });
+    selId=best;
+    rebuildGizmo();
+    invalidateSDF();
+    refreshUI();
+  }
+  mDown=false;
+});
+
+vwrap.addEventListener('wheel',e=>{
+  CAM.r=Math.max(.2,CAM.r+e.deltaY*0.009);
+  invalidateSDF();
+  const o=getSel(); if(o) posGizmo(o);
+},{passive:true});
+
+window.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+  const k=e.key.toLowerCase();
+  const o=getSel();
+  if(k==='g') setMode('translate');
+  else if(k==='r') setMode('rotate');
+  else if(k==='s') setMode('scale');
+  else if(k==='v') toggleSDF();
+  else if(k==='tab'){e.preventDefault();toggleSnap();}
+  else if(k==='delete'||k==='backspace'){if(o){del(o.id);showSt('DELETED');}}
+  else if(k==='escape'){selId=null;rebuildGizmo();invalidateSDF();refreshUI();}
+  else if(k==='1') setView('front');
+  else if(k==='3') setView('right');
+  else if(k==='7') setView('top');
+  else if(k==='5') setView('persp');
+  else if(o&&(e.key.startsWith('Arrow'))){
+    e.preventDefault();
+    const d=snapOn?snapVal:0.1;
+    if(gizmoMode==='translate'){
+      if(e.key==='ArrowLeft') o.px-=d;
+      else if(e.key==='ArrowRight') o.px+=d;
+      else if(e.key==='ArrowUp') o.py+=d;
+      else if(e.key==='ArrowDown') o.py-=d;
+    }
+    posGizmo(o); invalidateSDF(); refreshUI();
+  }
+});
+
+// ══════════════════════════════════════════════════════
+// VIEW PRESETS
+// ══════════════════════════════════════════════════════
+function setView(v){
+  if(v==='persp'){CAM.theta=-0.6;CAM.phi=1.1;CAM.r=9;}
+  else if(v==='top'){CAM.theta=0;CAM.phi=0.001;CAM.r=10;}
+  else if(v==='front'){CAM.theta=0;CAM.phi=Math.PI/2;CAM.r=9;}
+  else if(v==='right'){CAM.theta=Math.PI/2;CAM.phi=Math.PI/2;CAM.r=9;}
+  document.getElementById('cammode-lbl').textContent=v.toUpperCase();
+  invalidateSDF();
+  const o=getSel(); if(o) posGizmo(o);
+}
+function resetCam(){Object.assign(CAM,{theta:-0.6,phi:1.1,r:9,cx:0,cy:0,cz:0});invalidateSDF();}
+
+function setMode(m){
+  gizmoMode=m;
+  ['translate','rotate','scale'].forEach(mm=>document.getElementById('btn-'+mm).classList.toggle('act',mm===m));
+  rebuildGizmo();
+  showSt(m.toUpperCase());
+}
+
+// ══════════════════════════════════════════════════════
+// STATUS
+// ══════════════════════════════════════════════════════
+let stTimer=null;
+function showSt(msg){
+  const el=document.getElementById('statusbar');
+  el.textContent=msg; el.classList.add('on');
+  clearTimeout(stTimer); stTimer=setTimeout(()=>el.classList.remove('on'),1800);
+}
+function hideSt(){document.getElementById('statusbar').classList.remove('on');}
+
+// ══════════════════════════════════════════════════════
+// UI
+// ══════════════════════════════════════════════════════
+function refreshUI(){
+  renderList(); renderProps(); refreshOutput();
+  rebuildGizmo();
+  document.getElementById('ct').textContent=objects.length;
+  document.getElementById('prim-count-lbl').textContent=objects.length?objects.length+' primitive'+(objects.length>1?'s':''):'';
+}
+
+function renderList(){
+  const el=document.getElementById('ol');
+  if(!objects.length){el.innerHTML='<div class="empty-list">Add primitives above</div>';return;}
+  el.innerHTML=objects.map(o=>`
+    <div class="oi ${o.id===selId?'sel':''} ${o.enabled?'':'dis'}" onclick="selObj(${o.id})">
+      <div class="dot" style="background:${TYPE_COLOR[o.type]||'#888'};box-shadow:0 0 5px ${TYPE_COLOR[o.type]||'#888'}"></div>
+      <div class="oi-info">
+        <div class="oi-n">${o.name}</div>
+        <div class="oi-s">${o.type} #${o.ti}${o.sdfEnable?' ◈':''}${o.boolOp>0?' ⊕'+['','∧','∖','∖ᴮ'][o.boolOp]:''}</div>
+      </div>
+      <button class="oi-del" onclick="event.stopPropagation();del(${o.id})">✕</button>
+    </div>
+  `).join('');
+}
+
+function selObj(id){selId=id;rebuildGizmo();invalidateSDF();refreshUI();}
+
+function renderProps(){
+  const el=document.getElementById('props');
+  const st=document.getElementById('sel-type');
+  const o=getSel();
+  if(!o){el.innerHTML='<div class="nosel">← SELECT PRIMITIVE<br>TO EDIT</div>';st.textContent='';return;}
+  st.textContent=o.type.toUpperCase();
+
+  const r2d=v=>+(+v||0).toFixed(3);
+  const fv=v=>(+v||0).toFixed(4);
+  const g=o.g;
+
+  // ── Type-specific geometry fields (confirmed param names shown as tooltips) ──
+  let gHtml='';
+  if(o.type==='sphere'||o.type==='circle'){
+    gHtml=`<div class="pr"><div class="pl">Radius</div>
+      <input type="number" step="0.05" value="${g.radius||1}" oninput="upG('radius',+this.value)" title="_radius"/></div>`;
+  }
+  else if(o.type==='box'){
+    gHtml=`<div class="pr"><div class="pl">Size XYZ</div></div>
+    <div class="xyz3">
+      <div class="xf xf-x"><div class="xl">X</div><input type="number" step="0.05" value="${g.sx||1}" oninput="upG('sx',+this.value)" title="_size x y z"/></div>
+      <div class="xf xf-y"><div class="xl">Y</div><input type="number" step="0.05" value="${g.sy||1}" oninput="upG('sy',+this.value)"/></div>
+      <div class="xf xf-z"><div class="xl">Z</div><input type="number" step="0.05" value="${g.sz||1}" oninput="upG('sz',+this.value)"/></div>
+    </div>`;
+  }
+  else if(o.type==='cylinder'||o.type==='cone'){
+    gHtml=`
+      <div class="pr"><div class="pl">Radius</div><input type="number" step="0.05" value="${g.radius||.5}" oninput="upG('radius',+this.value)" title="_radius"/></div>
+      <div class="pr"><div class="pl">Height</div><input type="number" step="0.05" value="${g.height||2}" oninput="upG('height',+this.value)" title="_height"/></div>`;
+  }
+  else if(o.type==='torus'){
+    // torus: _radius (outer ring), tube size = wall_thickness
+    gHtml=`<div class="pr"><div class="pl">Ring R</div>
+      <input type="number" step="0.05" value="${g.radius||1}" oninput="upG('radius',+this.value)" title="_radius (ring radius; tube size = Wall Thickness below)"/></div>
+      <div style="font-size:var(--f0);color:var(--dim);padding:2px 0 4px">Tube size → Wall Thickness ↓</div>`;
+  }
+  else if(o.type==='ellipsoid'){
+    gHtml=`<div class="pr"><div class="pl">Size XYZ</div></div>
+    <div class="xyz3">
+      <div class="xf xf-x"><div class="xl">X</div><input type="number" step="0.05" value="${g.sx||1}" oninput="upG('sx',+this.value)" title="_size x y z"/></div>
+      <div class="xf xf-y"><div class="xl">Y</div><input type="number" step="0.05" value="${g.sy||.6}" oninput="upG('sy',+this.value)"/></div>
+      <div class="xf xf-z"><div class="xl">Z</div><input type="number" step="0.05" value="${g.sz||.8}" oninput="upG('sz',+this.value)"/></div>
+    </div>`;
+  }
+  else if(o.type==='prism'){
+    // Confirmed: _prism_angle, _trangle_height (MDB typo), _height
+    gHtml=`
+      <div class="pr"><div class="pl">Apex °</div><input type="number" step="1" min="1" max="179" value="${g.prismAngle||60}" oninput="upG('prismAngle',+this.value)" title="_prism_angle"/></div>
+      <div class="pr"><div class="pl">Tri H</div><input type="number" step="0.05" value="${g.triangleHeight||1}" oninput="upG('triangleHeight',+this.value)" title="_trangle_height (note MDB typo)"/></div>
+      <div class="pr"><div class="pl">Length</div><input type="number" step="0.05" value="${g.height||1.5}" oninput="upG('height',+this.value)" title="_height"/></div>`;
+  }
+  else if(o.type==='plane'){
+    gHtml=`<div class="pr"><div class="pl">Wall</div><input type="number" step="0.005" value="${g.wall||0.05}" oninput="upG('wall',+this.value)" title="_wall_thickness"/></div>`;
+  }
+  else if(o.type==='rectangle'){
+    gHtml=`
+      <div class="pr"><div class="pl">Width</div><input type="number" step="0.05" value="${g.width||1}" oninput="upG('width',+this.value)" title="_width"/></div>
+      <div class="pr"><div class="pl">Height</div><input type="number" step="0.05" value="${g.height||1}" oninput="upG('height',+this.value)" title="_height"/></div>`;
+  }
+  else if(o.type==='water'){
+    gHtml=`
+      <div class="pr"><div class="pl">Wave Len</div><input type="number" step="0.01" value="${g.length||0.5}" oninput="upG('length',+this.value)" title="_length"/></div>
+      <div class="pr"><div class="pl">Amplitude</div><input type="number" step="0.01" value="${g.amplitude||0.2}" oninput="upG('amplitude',+this.value)" title="_relative_amplitude"/></div>
+      <div class="pr"><div class="pl">Iterations</div><input type="number" step="1" min="1" max="8" value="${g.iterations||4}" oninput="upG('iterations',Math.round(+this.value))" title="_iterations"/></div>
+      <div class="pr"><div class="pl">Anim Spd</div><input type="number" step="0.01" value="${g.animSpeed||1}" oninput="upG('animSpeed',+this.value)" title="_anim_speed"/></div>
+      <div class="pr"><div class="pl">Prog Spd</div><input type="number" step="0.01" value="${g.animProgSpeed||1}" oninput="upG('animProgSpeed',+this.value)" title="_anim_progression_speed"/></div>`;
+  }
+
+  const boolOpts=BOOL_OPS.map(b=>`<option value="${b.v}" ${o.boolOp===b.v?'selected':''}>${b.label}</option>`).join('');
+
+  el.innerHTML=`
+    <div class="pg">
+      <div class="pgl">⚙ Identity</div>
+      <div class="pr"><div class="pl">Name</div><input type="text" value="${o.name}" oninput="upF('name',this.value)" style="font-size:calc(12px*var(--s));font-family:'Barlow Condensed',sans-serif;font-weight:700"/></div>
+      <div class="pr"><div class="pl">Enabled</div><input type="checkbox" ${o.enabled?'checked':''} onchange="upF('enabled',this.checked)"/></div>
+      <div class="pr"><div class="pl">Empty</div><input type="checkbox" ${o.empty?'checked':''} onchange="upF('empty',this.checked)" title="_empty (hollow)"/></div>
+      <div class="pr"><div class="pl">Material</div><input type="number" min="1" max="9" step="1" value="${o.matId||1}" oninput="upF('matId',+this.value)" title="_material_id"/></div>
+      <div class="pr"><div class="pl">Calc Order</div><input type="number" min="1" max="9" step="1" value="${o.calcOrder||1}" oninput="upF('calcOrder',+this.value)" title="_calculation_order"/></div>
+    </div>
+    <div class="pg">
+      <div class="pgl">⊕ Boolean <span class="warn-badge">boolean_operators</span></div>
+      <div class="pr"><div class="pl">Operator</div>
+        <select onchange="upF('boolOp',+this.value)" title="_boolean_operator">${boolOpts}</select>
+      </div>
+    </div>
+    <div class="pg">
+      <div class="pgl">⊕ Position</div>
+      <div class="xyz3">
+        <div class="xf xf-x"><div class="xl">X</div><input type="number" step="0.05" value="${fv(o.px)}" oninput="upPos('px',+this.value)"/></div>
+        <div class="xf xf-y"><div class="xl">Y</div><input type="number" step="0.05" value="${fv(o.py)}" oninput="upPos('py',+this.value)"/></div>
+        <div class="xf xf-z"><div class="xl">Z</div><input type="number" step="0.05" value="${fv(o.pz)}" oninput="upPos('pz',+this.value)"/></div>
+      </div>
+    </div>
+    <div class="pg">
+      <div class="pgl">↻ Rotation °</div>
+      <div class="xyz3">
+        <div class="xf xf-x"><div class="xl">X</div><input type="number" step="1" value="${r2d(o.rx)}" oninput="upPos('rx',+this.value)"/></div>
+        <div class="xf xf-y"><div class="xl">Y</div><input type="number" step="1" value="${r2d(o.ry)}" oninput="upPos('ry',+this.value)"/></div>
+        <div class="xf xf-z"><div class="xl">Z</div><input type="number" step="1" value="${r2d(o.rz)}" oninput="upPos('rz',+this.value)"/></div>
+      </div>
+    </div>
+    <div class="pg">
+      <div class="pgl">⬡ Scale (baked on export)</div>
+      <div class="xyz3">
+        <div class="xf xf-x"><div class="xl">X</div><input type="number" step="0.05" value="${fv(o.sx)}" oninput="upPos('sx',Math.max(0.001,+this.value))"/></div>
+        <div class="xf xf-y"><div class="xl">Y</div><input type="number" step="0.05" value="${fv(o.sy)}" oninput="upPos('sy',Math.max(0.001,+this.value))"/></div>
+        <div class="xf xf-z"><div class="xl">Z</div><input type="number" step="0.05" value="${fv(o.sz)}" oninput="upPos('sz',Math.max(0.001,+this.value))"/></div>
+      </div>
+    </div>
+    ${gHtml?`<div class="pg"><div class="pgl">⬡ Geometry</div>${gHtml}</div>`:''}
+    <div class="sdf-section">
+      <div class="sdf-label">◈ Smooth DE Combine <span class="warn-badge">v2.34</span></div>
+      <div class="pr"><div class="pl">Enable</div><input type="checkbox" ${o.sdfEnable?'checked':''} onchange="upF('sdfEnable',this.checked)" title="_smooth_de_combine_enable"/></div>
+      <div class="range-row">
+        <div class="pl">Distance</div>
+        <input type="range" min="0.01" max="3" step="0.01" value="${o.sdfDist||1}" oninput="upF('sdfDist',+this.value);document.getElementById('sdfDistVal').textContent=(+this.value).toFixed(2)"/>
+        <div class="range-val" id="sdfDistVal">${(o.sdfDist||1).toFixed(2)}</div>
+      </div>
+      <div class="pr"><div class="pl">Wall Thick</div><input type="number" step="0.001" min="0" value="${(o.wallThick||0.05).toFixed(4)}" oninput="upF('wallThick',+this.value)" title="_wall_thickness (also = torus tube radius)"/></div>
+    </div>
+    <div class="pg">
+      <div class="pgl">↺ Repeat</div>
+      <div class="xyz3">
+        <div class="xf xf-x"><div class="xl">X</div><input type="number" step="0.1" value="${fv(o.repX)}" oninput="upPos('repX',+this.value)" title="_repeat x y z"/></div>
+        <div class="xf xf-y"><div class="xl">Y</div><input type="number" step="0.1" value="${fv(o.repY)}" oninput="upPos('repY',+this.value)"/></div>
+        <div class="xf xf-z"><div class="xl">Z</div><input type="number" step="0.1" value="${fv(o.repZ)}" oninput="upPos('repZ',+this.value)"/></div>
+      </div>
+    </div>
+    <button class="del-btn" onclick="del(${o.id})">✕ DELETE</button>
+  `;
+}
+
+function upF(k,v){const o=getSel();if(o){o[k]=v;invalidateSDF();refreshUI();}}
+function upPos(k,v){const o=getSel();if(o){o[k]=v;posGizmo(o);invalidateSDF();refreshOutput();}}
+function upG(k,v){const o=getSel();if(o){o.g[k]=Math.max(0.001,v);invalidateSDF();refreshOutput();}}
+
+// ══════════════════════════════════════════════════════
+// EXPORT — FULL VALID v2.34 .FRACT FILE
+// ══════════════════════════════════════════════════════
+function f6(n){return parseFloat((+n||0).toFixed(6)).toString();}
+
+function genFract(){
+  if(!objects.length) return '# Mandelbulber settings file\n# version 2.34\n# only modified parameters\n[main_parameters]\n# No primitives yet';
+  reIdx();
+  const cv=camVecs();
+
+  // Coordinate remap: viewport Y-up → Mandelbulber Z-up
+  // vp(X, Y, Z) → mdb(X, -Z, Y)
+  const cp=cv.pos;
+  const mdbCam=`${f6(cp.x)} ${f6(-cp.z)} ${f6(cp.y)}`;
+  const camDist=cp.distanceTo(new THREE.Vector3(CAM.cx,CAM.cy,CAM.cz));
+  const mdbTgt=`${f6(CAM.cx)} ${f6(-CAM.cz)} ${f6(CAM.cy)}`;
+
+  // Check if any primitive uses boolean ops (need global flag)
+  const needsBool = objects.some(o=>o.boolOp>0);
+
+  const L=[
+    '# Mandelbulber settings file',
+    '# version 2.34',
+    '# only modified parameters',
+    '[main_parameters]',
+    `ambient_occlusion_enabled true;`,
+  ];
+  if(needsBool) L.push(`boolean_operators true;`);
+  L.push(
+    `camera ${mdbCam};`,
+    `camera_distance_to_target ${f6(camDist)};`,
+    `camera_rotation 0 0 0;`,
+    `camera_top 0 0 1;`,
+    `DE_factor 0.5;`,
+    `detail_level 2;`,
+    `formula_1 0;`,
+    `keyframe_last_to_render 0;`,
+    `limit_max 3.486784401 3.486784401 3.486784401;`,
+    `limit_min -3.486784401 -3.486784401 -3.486784401;`,
+    `limits_enabled true;`,
+    `mat1_is_defined true;`,
+    `raytraced_reflections true;`,
+    `target ${mdbTgt};`,
+    ''
+  );
+
+  objects.forEach(o=>{
+    const t=o.type, i=o.ti;
+    const pfx=`primitive_${t}_${i}`;
+    const g=o.g;
+
+    // ── Coordinate remap ──
+    // Position: vp(px, py, pz) → mdb(px, -pz, py)
+    const mX=o.px, mY=-o.pz, mZ=o.py;
+    // Rotation: viewport (rx=X-pitch, ry=Y-yaw, rz=Z-roll)
+    //   → MDB (alpha=Z-rot, beta=X-rot, gamma=Y-rot)
+    //   → mdb_alpha = o.ry, mdb_beta = o.rx, mdb_gamma = -o.rz
+    const mA=o.ry, mB=o.rx, mG=-o.rz;
+    // Scale remap: vp sy(height/up) → mdb Z; vp sz(depth) → mdb Y
+    const msX=o.sx, msY=o.sz, msZ=o.sy;
+
+    // Helpers
+    const rad=(r,s)=>f6(r*Math.max(msX,s===undefined?msY:s));
+    const ht=(h)=>f6(h*msZ);
+    const vec3=(x,y,z)=>`${f6(x)} ${f6(y)} ${f6(z)}`;
+
+    // ── Core params — ALL CONFIRMED ──
+    L.push(`${pfx}_enabled true;`);
+    if(o.empty)       L.push(`${pfx}_empty true;`);
+    if(o.boolOp!==0)  L.push(`${pfx}_boolean_operator ${o.boolOp};`);
+    if(o.calcOrder!==1) L.push(`${pfx}_calculation_order ${o.calcOrder};`);
+    L.push(`${pfx}_position ${vec3(mX,mY,mZ)};`);
+    L.push(`${pfx}_rotation ${vec3(mA,mB,mG)};`);
+    if(o.matId!==1)   L.push(`${pfx}_material_id ${o.matId};`);
+
+    // ── Type-specific geometry — ALL CONFIRMED from v2.34 .fract files ──
+    if(t==='sphere'){
+      L.push(`${pfx}_radius ${f6((g.radius||1)*Math.max(msX,msY,msZ))};`);
+    }
+    else if(t==='box'){
+      // CONFIRMED: _size x y z  (vec3 compact)
+      L.push(`${pfx}_size ${f6((g.sx||1)*msX)} ${f6((g.sy||1)*msY)} ${f6((g.sz||1)*msZ)};`);
+    }
+    else if(t==='plane'){
+      // CONFIRMED: _wall_thickness
+      L.push(`${pfx}_wall_thickness ${f6(g.wall||0.05)};`);
+    }
+    else if(t==='cylinder'){
+      // CONFIRMED: _radius scalar, _height scalar
+      L.push(`${pfx}_radius ${rad(g.radius||.5)};`);
+      L.push(`${pfx}_height ${ht(g.height||2)};`);
+    }
+    else if(t==='cone'){
+      // CONFIRMED: _radius scalar, _height scalar
+      L.push(`${pfx}_radius ${rad(g.radius||.5)};`);
+      L.push(`${pfx}_height ${ht(g.height||1.5)};`);
+    }
+    else if(t==='torus'){
+      // CONFIRMED: _radius scalar (outer ring only; tube = wall_thickness)
+      L.push(`${pfx}_radius ${rad(g.radius||1)};`);
+    }
+    else if(t==='circle'){
+      // CONFIRMED: _radius scalar
+      L.push(`${pfx}_radius ${rad(g.radius||1)};`);
+    }
+    else if(t==='rectangle'){
+      // CONFIRMED: _width scalar, _height scalar
+      L.push(`${pfx}_width ${f6((g.width||1)*Math.max(msX,msY))};`);
+      L.push(`${pfx}_height ${f6((g.height||1)*msZ)};`);
+    }
+    else if(t==='ellipsoid'){
+      // CONFIRMED: _size x y z  (vec3, NOT _radius)
+      L.push(`${pfx}_size ${f6((g.sx||1)*msX)} ${f6((g.sy||.6)*msY)} ${f6((g.sz||.8)*msZ)};`);
+    }
+    else if(t==='prism'){
+      // CONFIRMED: _prism_angle, _trangle_height (MDB source typo!), _height
+      L.push(`${pfx}_prism_angle ${f6(g.prismAngle||60)};`);
+      L.push(`${pfx}_trangle_height ${f6((g.triangleHeight||1)*Math.max(msX,msY))};`);
+      L.push(`${pfx}_height ${ht(g.height||1.5)};`);
+    }
+    else if(t==='water'){
+      // CONFIRMED: _length, _relative_amplitude, _iterations, _anim_speed, _anim_progression_speed
+      L.push(`${pfx}_length ${f6((g.length||0.5)*Math.max(msX,msZ))};`);
+      L.push(`${pfx}_relative_amplitude ${f6((g.amplitude||0.2)*msZ)};`);
+      L.push(`${pfx}_iterations ${Math.round(g.iterations||4)};`);
+      if((g.animSpeed||1)!==1)     L.push(`${pfx}_anim_speed ${f6(g.animSpeed||1)};`);
+      if((g.animProgSpeed||1)!==1) L.push(`${pfx}_anim_progression_speed ${f6(g.animProgSpeed||1)};`);
+    }
+
+    // ── Shared optional params ──
+    // wall_thickness: torus (tube size), cylinder, cone, ellipsoid, water, sphere, box
+    // Plane emits it above. Skip if at default 0.05.
+    if(t!=='plane' && o.wallThick>0 && Math.abs(o.wallThick-0.05)>0.0001){
+      L.push(`${pfx}_wall_thickness ${f6(o.wallThick)};`);
+    }
+    // Smooth DE combine — CONFIRMED param names
+    if(o.sdfEnable){
+      L.push(`${pfx}_smooth_de_combine_enable true;`);
+      L.push(`${pfx}_smooth_de_combine_distance ${f6(o.sdfDist||1)};`);
+    }
+    // Repeat — CONFIRMED: _repeat x y z (vec3 compact)
+    if(o.repX||o.repY||o.repZ){
+      // Remap repeat axes same as position
+      L.push(`${pfx}_repeat ${f6(o.repX)} ${f6(-o.repZ)} ${f6(o.repY)};`);
+    }
+
+    L.push('');
+  });
+
+  return L.join('\n');
+}
+
+function genOBJ(){
+  if(!objects.length) return '# No objects';
+  reIdx();
+  const lines=['# OBJ export — MNDLBR Scene Placer','# Coordinate space: Y-up (viewport)',''];
+  let vOff=1;
+  objects.forEach(o=>{
+    const g=o.g;
+    lines.push(`o ${o.name.replace(/\s/g,'_')}`);
+    let geo;
+    const msX=o.sx, msY=o.sy, msZ=o.sz;
+    if(o.type==='sphere')
+      geo=new THREE.SphereGeometry((g.radius||1)*Math.max(msX,msY,msZ),20,14);
+    else if(o.type==='box')
+      geo=new THREE.BoxGeometry((g.sx||1)*msX,(g.sy||1)*msY,(g.sz||1)*msZ);
+    else if(o.type==='cylinder')
+      geo=new THREE.CylinderGeometry((g.radius||.5)*Math.max(msX,msZ),(g.radius||.5)*Math.max(msX,msZ),(g.height||2)*msY,20);
+    else if(o.type==='torus')
+      geo=new THREE.TorusGeometry((g.radius||1)*Math.max(msX,msZ),(o.wallThick||0.2)*Math.min(msX,msY,msZ),12,40);
+    else if(o.type==='circle')
+      geo=new THREE.CircleGeometry((g.radius||1)*Math.max(msX,msZ),24);
+    else if(o.type==='plane')
+      geo=new THREE.PlaneGeometry(6*msX,6*msZ);
+    else if(o.type==='cone')
+      geo=new THREE.ConeGeometry((g.radius||.5)*Math.max(msX,msZ),(g.height||1.5)*msY,20);
+    else if(o.type==='ellipsoid'){
+      geo=new THREE.SphereGeometry(1,20,14);
+      // Scale applied in matrix below
+    }
+    else if(o.type==='prism')
+      geo=new THREE.CylinderGeometry(0,(g.triangleHeight||1)*Math.max(msX,msZ),(g.height||1.5)*msY,3);
+    else if(o.type==='rectangle')
+      geo=new THREE.PlaneGeometry((g.width||1)*Math.max(msX,msZ),(g.height||1)*msY);
+    else if(o.type==='water')
+      geo=new THREE.PlaneGeometry(6*msX,6*msZ,8,8);
+    else
+      geo=new THREE.SphereGeometry(.5,8,6);
+
+    const m4=new THREE.Matrix4();
+    const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(o.rx*Math.PI/180,o.ry*Math.PI/180,o.rz*Math.PI/180));
+    const scl = o.type==='ellipsoid'
+      ? new THREE.Vector3((g.sx||1)*msX,(g.sy||.6)*msY,(g.sz||.8)*msZ)
+      : new THREE.Vector3(1,1,1);
+    m4.compose(new THREE.Vector3(o.px,o.py,o.pz),q,scl);
+
+    const pa=geo.attributes.position;
+    for(let i=0;i<pa.count;i++){
+      const v=new THREE.Vector3(pa.getX(i),pa.getY(i),pa.getZ(i)).applyMatrix4(m4);
+      lines.push(`v ${v.x.toFixed(5)} ${v.y.toFixed(5)} ${v.z.toFixed(5)}`);
+    }
+    const idx=geo.index;
+    if(idx) for(let i=0;i<idx.count;i+=3)
+      lines.push(`f ${idx.getX(i)+vOff} ${idx.getX(i+1)+vOff} ${idx.getX(i+2)+vOff}`);
+    vOff+=pa.count;
+    lines.push('');
+    geo.dispose();
+  });
+  return lines.join('\n');
+}
+
+let outTab='fract';
+function setTab(t){
+  outTab=t;
+  document.getElementById('tab-fract').classList.toggle('act',t==='fract');
+  document.getElementById('tab-obj').classList.toggle('act',t==='obj');
+  refreshOutput();
+}
+
+function refreshOutput(){
+  const raw=outTab==='fract'?genFract():genOBJ();
+  let html=raw;
+  if(outTab==='fract'){
+    html=raw
+      .replace(/^(#.+)$/gm,'<span style="color:#1a3040">$1</span>')
+      .replace(/^\[(.+)\]$/gm,'<span style="color:#c06030">[$1]</span>')
+      .replace(/^(primitive_\w+?)(\s)/gm,'<span style="color:#3a7abf">$1</span>$2')
+      .replace(/\b(true|false)\b/g,'<span style="color:#c0602a">$1</span>')
+      .replace(/\b(-?\d+\.?\d+(?:e[+-]?\d+)?)\b/g,'<span style="color:#68a844">$1</span>');
+  } else {
+    html=raw.replace(/^(#.+)$/gm,'<span style="color:#1a3040">$1</span>')
+      .replace(/^(o .+)$/gm,'<span style="color:#c06030">$1</span>')
+      .replace(/^(v )/gm,'<span style="color:#3a7abf">v </span>');
+  }
+  document.getElementById('outcode').innerHTML=html;
+}
+
+async function copyOutput(){
+  const text=outTab==='fract'?genFract():genOBJ();
+  try{await navigator.clipboard.writeText(text);}
+  catch(e){const t=document.createElement('textarea');t.value=text;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);}
+  const b=document.getElementById('cpbtn');
+  b.textContent='✓ OK'; b.classList.add('ok');
+  setTimeout(()=>{b.textContent='COPY';b.classList.remove('ok');},2000);
+  toast(outTab==='fract'?'Copied! File → Load settings from clipboard in Mandelbulber':'OBJ copied!');
+}
+
+function copyFract(){
+  const t=genFract();
+  navigator.clipboard.writeText(t).catch(()=>{});
+  toast('✓ .fract copied — paste via File → Load settings from clipboard');
+}
+
+function downloadOBJ(){
+  if(!objects.length){toast('No objects!');return;}
+  const b=new Blob([genOBJ()],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);
+  a.download='mndlbr_scene.obj';
+  a.click();
+  toast('OBJ downloaded!');
+}
+
+let toastT=null;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('on');
+  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('on'),3500);
+}
+
+// Init resize
+window.addEventListener('resize',()=>{invalidateSDF();resizeGizmo();});
+refreshUI();
+</script>
+</body>
+</html>
