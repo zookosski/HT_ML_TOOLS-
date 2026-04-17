@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mandelbulber — Formula Generator</title>
+<style>
+  :root {
+    --bg:       #111113;
+    --panel:    #16161a;
+    --panel-2:  #1c1c20;
+    --line:     #2a2a30;
+    --line-2:   #3a3a42;
+    --text:     #e6e6e6;
+    --text-dim: #8a8a92;
+    --text-mut: #5a5a62;
+    --accent:   #c79868;        /* warm amber */
+    --accent-d: #8a6a48;
+    --good:     #7aa37a;
+    --warn:     #c97a5a;
+    --xyz:      #9a8fb8;
+    --single:   #7a9aa3;
+    --mono:     ui-monospace, "SF Mono", Menlo, "JetBrains Mono", Consolas, monospace;
+    --sans:     -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  body { padding: 48px 32px 96px; }
+
+  .wrap { max-width: 1240px; margin: 0 auto; }
+
+  /* ---------- Header ---------- */
+  header { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 24px; border-bottom: 1px solid var(--line); margin-bottom: 32px; }
+  header h1 { font-size: 18px; font-weight: 500; letter-spacing: -0.01em; }
+  header h1 .accent { color: var(--accent); font-weight: 400; }
+  header .sub { color: var(--text-mut); font-size: 12px; font-family: var(--mono); }
+
+  /* ---------- Section labels ---------- */
+  .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-mut); margin-bottom: 12px; font-weight: 500; }
+
+  /* ---------- Global controls ---------- */
+  .globals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-bottom: 32px; }
+  .globals .cell { background: var(--panel); padding: 16px 18px; }
+  .globals .cell label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-mut); margin-bottom: 8px; }
+  .globals .cell .value { font-family: var(--mono); font-size: 22px; font-weight: 400; color: var(--text); letter-spacing: -0.02em; }
+  .globals .cell input[type="number"] {
+    width: 100%; background: transparent; border: none; color: var(--text);
+    font-family: var(--mono); font-size: 22px; padding: 0; outline: none;
+    border-bottom: 1px solid transparent; transition: border-color 120ms ease;
+  }
+  .globals .cell input[type="number"]:focus { border-bottom-color: var(--accent); }
+  .globals .cell .frame-display { display: flex; align-items: baseline; gap: 8px; }
+  .globals .cell .frame-display .total { color: var(--text-mut); font-size: 14px; font-family: var(--mono); }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar { display: flex; gap: 8px; margin-bottom: 24px; }
+  .btn {
+    background: transparent; color: var(--text); border: 1px solid var(--line-2);
+    padding: 8px 14px; font-size: 12px; font-family: var(--sans);
+    letter-spacing: 0.02em; cursor: pointer; transition: all 120ms ease;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .btn.primary:hover { background: var(--accent-d); border-color: var(--accent-d); color: var(--bg); }
+  .btn.ghost { color: var(--text-dim); }
+
+  /* ---------- Timeline ---------- */
+  .timeline { background: var(--panel); border: 1px solid var(--line); padding: 18px 20px; margin-bottom: 32px; }
+  .timeline-row { display: flex; align-items: center; gap: 16px; }
+  .timeline-row .time-readout { font-family: var(--mono); font-size: 12px; color: var(--text-dim); min-width: 90px; }
+  .timeline-row .scrub { flex: 1; }
+  input[type="range"].scrub {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+    background: var(--line-2); outline: none; cursor: pointer;
+  }
+  input[type="range"].scrub::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--accent); cursor: pointer; border: none;
+  }
+  input[type="range"].scrub::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%; background: var(--accent); cursor: pointer; border: none;
+  }
+
+  /* ---------- Parameter cards ---------- */
+  .params { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .param { background: var(--panel); border: 1px solid var(--line); transition: border-color 120ms ease; }
+  .param:hover { border-color: var(--line-2); }
+  .param.disabled { opacity: 0.5; }
+
+  .param-head { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); gap: 12px; }
+  .param-head input.name {
+    flex: 1; background: transparent; border: none; color: var(--text);
+    font-family: var(--sans); font-size: 13px; padding: 2px 0; outline: none;
+    border-bottom: 1px solid transparent; transition: border-color 120ms ease;
+  }
+  .param-head input.name:focus { border-bottom-color: var(--line-2); }
+  .toggle { width: 14px; height: 14px; cursor: pointer; appearance: none; -webkit-appearance: none; border: 1px solid var(--line-2); background: transparent; position: relative; }
+  .toggle:checked { background: var(--accent); border-color: var(--accent); }
+  .toggle:checked::after { content: ""; position: absolute; left: 3px; top: 0px; width: 4px; height: 8px; border: solid var(--bg); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+  .badge { font-family: var(--mono); font-size: 10px; padding: 2px 6px; border: 1px solid; letter-spacing: 0.04em; text-transform: uppercase; }
+  .badge.xyz { color: var(--xyz); border-color: var(--xyz); }
+  .badge.single { color: var(--single); border-color: var(--single); }
+
+  .head-actions { display: flex; gap: 4px; align-items: center; }
+  .icon-btn { background: transparent; border: 1px solid var(--line); color: var(--text-dim); width: 26px; height: 26px; cursor: pointer; font-family: var(--mono); font-size: 11px; display: flex; align-items: center; justify-content: center; transition: all 120ms ease; }
+  .icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .icon-btn.danger:hover { color: var(--warn); border-color: var(--warn); }
+
+  .live-value { font-family: var(--mono); font-size: 13px; color: var(--accent); padding: 2px 8px; background: rgba(199, 152, 104, 0.08); }
+
+  .param-body { padding: 16px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-mut); }
+  .field input, .field select {
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+    padding: 6px 8px; font-family: var(--mono); font-size: 12px; outline: none;
+    transition: border-color 120ms ease;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field select { font-family: var(--sans); cursor: pointer; }
+
+  .pulse-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .pulse-row label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-mut); min-width: 80px; }
+  .pulse-row input[type="range"] { flex: 1; -webkit-appearance: none; appearance: none; height: 2px; background: var(--line-2); outline: none; }
+  .pulse-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: none; cursor: pointer; }
+  .pulse-row .pw-readout { font-family: var(--mono); font-size: 11px; color: var(--text-dim); min-width: 36px; text-align: right; }
+
+  .influence { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .influence .section-label { margin-bottom: 8px; }
+
+  .clamp-row {
+    margin-top: 14px; padding: 10px 12px; background: var(--panel-2);
+    border: 1px solid var(--line); display: flex; align-items: center;
+    justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  .clamp-label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); cursor: pointer; }
+  .clamp-label .toggle { margin: 0; }
+  .range-readout { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+
+  .viz { margin-top: 16px; height: 64px; background: var(--panel-2); border: 1px solid var(--line); position: relative; overflow: hidden; }
+  .viz svg { width: 100%; height: 100%; display: block; }
+
+  .formula-preview {
+    margin-top: 12px; font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+    background: var(--panel-2); border: 1px solid var(--line); padding: 10px 12px;
+    word-break: break-all; line-height: 1.55;
+  }
+  .formula-preview .label { color: var(--text-mut); text-transform: uppercase; font-size: 9px; letter-spacing: 0.12em; display: block; margin-bottom: 4px; }
+  .formula-preview .axis { color: var(--accent); }
+
+  /* ---------- Output ---------- */
+  .output { background: var(--panel); border: 1px solid var(--line); margin-bottom: 32px; }
+  .output-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .output-head h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); font-weight: 500; }
+  .output-head h3 .frame-num { color: var(--accent); font-family: var(--mono); }
+  .output pre {
+    font-family: var(--mono); font-size: 12px; color: var(--text); padding: 18px;
+    background: var(--bg); margin: 0; white-space: pre-wrap; word-break: break-word;
+    line-height: 1.65; max-height: 360px; overflow: auto;
+  }
+  .output pre .comment { color: var(--text-mut); }
+  .output pre .key { color: var(--accent); }
+
+  /* ---------- Notes ---------- */
+  .notes { font-size: 12px; color: var(--text-dim); display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; padding-top: 24px; border-top: 1px solid var(--line); }
+  .notes h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text); margin-bottom: 10px; font-weight: 500; }
+  .notes ul { list-style: none; }
+  .notes li { padding: 3px 0; color: var(--text-dim); }
+  .notes li::before { content: "→ "; color: var(--text-mut); }
+  .notes code { font-family: var(--mono); font-size: 11px; color: var(--accent); background: var(--panel); padding: 1px 5px; }
+
+  /* ---------- Toast ---------- */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--panel); border: 1px solid var(--accent); color: var(--text); padding: 10px 18px; font-size: 12px; font-family: var(--mono); opacity: 0; transition: all 200ms ease; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Selection */
+  ::selection { background: var(--accent); color: var(--bg); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--line-2); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-mut); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Mandelbulber <span class="accent">·</span> Formula Generator</h1>
+    <span class="sub">v2 · in-memory state</span>
+  </header>
+
+  <!-- Global controls -->
+  <div class="section-label">Project</div>
+  <div class="globals">
+    <div class="cell">
+      <label>BPM</label>
+      <input type="number" id="bpm" value="128" min="20" max="300">
+    </div>
+    <div class="cell">
+      <label>FPS</label>
+      <input type="number" id="fps" value="30" min="1" max="120">
+    </div>
+    <div class="cell">
+      <label>Total Frames</label>
+      <input type="number" id="totalFrames" value="300" min="1" max="100000">
+    </div>
+    <div class="cell">
+      <label>Current Frame</label>
+      <div class="frame-display">
+        <span class="value" id="currentFrameDisplay">0</span>
+        <span class="total" id="totalFramesLabel">/ 300</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="btn primary" id="playBtn">Play</button>
+    <button class="btn" id="addParamBtn">Add parameter</button>
+    <button class="btn ghost" id="resetBtn">Reset</button>
+    <span style="flex:1"></span>
+    <button class="btn" id="copyAllBtn">Copy all formulas</button>
+  </div>
+
+  <!-- Timeline -->
+  <div class="timeline">
+    <div class="timeline-row">
+      <span class="time-readout" id="timeDisplay">0.00s</span>
+      <input type="range" class="scrub" id="timeline" min="0" max="299" value="0">
+      <span class="time-readout" id="endTimeDisplay" style="text-align:right">10.00s</span>
+    </div>
+  </div>
+
+  <!-- Parameters -->
+  <div class="section-label">Parameters</div>
+  <div class="params" id="parametersContainer"></div>
+
+  <!-- Output -->
+  <div class="section-label">Generated Formulas</div>
+  <div class="output">
+    <div class="output-head">
+      <h3>Formulas at frame <span class="frame-num" id="frameNumber">0</span></h3>
+      <button class="btn" id="copyAllBtn2">Copy</button>
+    </div>
+    <pre id="scriptOutput"></pre>
+  </div>
+
+  <!-- Integration notes -->
+  <div class="notes">
+    <div>
+      <h4>Mandelbulber</h4>
+      <ul>
+        <li>Paste single-value formulas directly into any parameter field</li>
+        <li>For XYZ vectors, use the three lines for camera, target, rotation</li>
+        <li>Variables wrap in single quotes: <code>'frame_no'</code>, <code>'audio_amplitude'</code></li>
+        <li>Available math: <code>sin cos tan pow abs sqrt log</code></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Audio reactivity</h4>
+      <ul>
+        <li>Enable <em>Anim by sound</em> in Mandelbulber for live audio binding</li>
+        <li>Use <code>1 / ('audio_amplitude' + 0.01)</code> for inverse response</li>
+        <li>BPM here pre-syncs the math to your DAW tempo</li>
+      </ul>
+    </div>
+    <div>
+      <h4>External tools</h4>
+      <ul>
+        <li>Blender: PLY/OBJ export &rarr; identical camera math via Python driver</li>
+        <li>PD Howler / DAW: drive parameters from MIDI CC mapped to <code>audio_*</code></li>
+        <li>Any external agent can write the same formula strings to settings files</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Copied</div>
+
+<script>
+"use strict";
+
+/* ---------- State (in-memory only — artifact runtime forbids localStorage) ---------- */
+
+const state = {
+  bpm: 128,
+  fps: 30,
+  totalFrames: 300,
+  currentFrame: 0,
+  isPlaying: false,
+  playInterval: null,
+  parameters: defaultParameters(),
+  nextId: 1000,
+};
+
+const MANDELBULBER_VARS = [
+  'frame_no',
+  'audio_amplitude', 'audio_frequency', 'audio_beat_strength',
+  'main_camera_distance_to_target', 'main_camera_rotation',
+  'main_brightness', 'main_ambient_occlusion',
+  'main_mat1_luminosity', 'main_light_intensity',
+  'main_background_brightness', 'main_bailout', 'main_basic_fog_visibility',
+  'camera.x', 'camera.y', 'camera.z',
+  'target.x', 'target.y', 'target.z',
+];
+
+function defaultParameters() {
+  // Range model: user thinks in min/max. Internally derived to amplitude/offset.
+  // hardClamp: wrap final expression in abs()-based clamp so output is *guaranteed* in [min, max].
+  return [
+    { id: 1, name: 'Camera position',     type: 'xyz',    waveform: 'sine',   min: -2.0, max: 2.0,  frequency: 1.0, phase: 0,  clockDiv: 1, pulseWidth: 0.5, enabled: true, hardClamp: false, influenceParam: 'frame_no', influenceMode: 'none' },
+    { id: 2, name: 'Camera distance',     type: 'single', waveform: 'sine',   min:  1.5, max: 2.5,  frequency: 0.5, phase: 0,  clockDiv: 2, pulseWidth: 0.5, enabled: true, hardClamp: false, influenceParam: 'frame_no', influenceMode: 'none' },
+    { id: 3, name: 'Material luminosity', type: 'single', waveform: 'square', min:  0.4, max: 1.0,  frequency: 4.0, phase: 0,  clockDiv: 1, pulseWidth: 0.3, enabled: true, hardClamp: false, influenceParam: 'frame_no', influenceMode: 'none' },
+  ];
+}
+
+// Returns {center, halfRange} from min/max
+function rangeOf(p) {
+  const mn = Math.min(p.min, p.max);
+  const mx = Math.max(p.min, p.max);
+  return { center: (mn + mx) / 2, halfRange: (mx - mn) / 2, min: mn, max: mx };
+}
+
+/* ---------- DOM refs ---------- */
+
+const $ = id => document.getElementById(id);
+const dom = {
+  bpm: $('bpm'), fps: $('fps'), totalFrames: $('totalFrames'),
+  currentFrameDisplay: $('currentFrameDisplay'), totalFramesLabel: $('totalFramesLabel'),
+  playBtn: $('playBtn'), addParamBtn: $('addParamBtn'), resetBtn: $('resetBtn'),
+  copyAllBtn: $('copyAllBtn'), copyAllBtn2: $('copyAllBtn2'),
+  timeline: $('timeline'), timeDisplay: $('timeDisplay'), endTimeDisplay: $('endTimeDisplay'),
+  parametersContainer: $('parametersContainer'),
+  scriptOutput: $('scriptOutput'), frameNumber: $('frameNumber'),
+  toast: $('toast'),
+};
+
+/* ---------- Math: sample waveforms ---------- */
+
+function bpmFactor(p) {
+  // (bpm / 60) is beats per second; / fps gives beats per frame; * frequency * 1/clockDiv = scaling
+  return (state.bpm / 60) / state.fps * p.frequency / p.clockDiv;
+}
+
+function sampleWave(p, frame) {
+  const t = frame * bpmFactor(p);
+  const phaseRad = (p.phase * Math.PI) / 180;
+  const TAU = 2 * Math.PI;
+  const { center, halfRange, min, max } = rangeOf(p);
+
+  // Each branch returns a normalized signal in roughly [-1, 1], then we map to [center-halfRange, center+halfRange].
+  // Exception: inverse_audio is intrinsically unbounded — treated separately.
+  let norm;
+  switch (p.waveform) {
+    case 'sine':
+      norm = Math.sin(TAU * t + phaseRad);
+      break;
+    case 'cosine':
+      norm = Math.cos(TAU * t + phaseRad);
+      break;
+    case 'square': {
+      const cyclePos = ((t + phaseRad / TAU) % 1 + 1) % 1;
+      norm = cyclePos < p.pulseWidth ? 1 : -1;
+      break;
+    }
+    case 'sawtooth': {
+      // Real sawtooth (used for the JS preview only — formula uses Fourier approx)
+      const v = ((t + phaseRad / TAU) % 1 + 1) % 1;
+      norm = 2 * v - 1;
+      break;
+    }
+    case 'sample_hold': {
+      // Stepped pseudo-random in [-1, 1]
+      const stepped = Math.floor(t * 8) / 8;
+      norm = Math.sin(stepped * 12345.67);   // already in [-1, 1]
+      break;
+    }
+    case 'inverse_audio': {
+      // Bounded version: env in [0,1] -> 1/(env+0.01) in [~1, 100]. Map to user range with optional clamp.
+      const env = 0.5 + 0.5 * Math.sin(TAU * t * 2 + phaseRad);
+      const raw = 1 / (env + 0.01);                 // [0.99, 100]
+      // Normalize logarithmically to [-1, 1] so 1 -> -1 and 100 -> +1
+      norm = (Math.log(raw) - Math.log(0.99)) / (Math.log(100) - Math.log(0.99)) * 2 - 1;
+      break;
+    }
+    default:
+      norm = 0;
+  }
+
+  let out = center + halfRange * norm;
+  if (p.hardClamp) out = Math.min(max, Math.max(min, out));
+  return out;
+}
+
+/* ---------- Formula emission for Mandelbulber parameter fields ---------- */
+
+function buildBaseExpr(p, phaseDeg) {
+  // Emits an expression that swings within [min, max] of p (after derivation: center ± halfRange).
+  // Each waveform branch produces a unit-normalized expression in approx [-1, 1], then we map.
+  const factor = bpmFactor(p);
+  const phaseRad = ((phaseDeg ?? p.phase) * Math.PI) / 180;
+  const TAU_STR = '6.28318';
+  const isReplaced = p.influenceMode === 'replace';
+  const driver = isReplaced ? `'${p.influenceParam}'` : "'frame_no'";
+  const scaled = isReplaced ? driver : `${driver} * ${fmtNum(factor)}`;
+  const phasePart = phaseRad === 0 ? '' : ` + ${fmtNum(phaseRad)}`;
+  const { center, halfRange, min, max } = rangeOf(p);
+
+  // Build the unit-normalized core in [-1, 1]
+  let unit;
+  switch (p.waveform) {
+    case 'sine':
+      unit = `sin(${TAU_STR} * ${scaled}${phasePart})`;
+      break;
+    case 'cosine':
+      unit = `cos(${TAU_STR} * ${scaled}${phasePart})`;
+      break;
+    case 'square': {
+      // sign-emulation via x / (abs(x) + eps); cosine threshold maps pulseWidth correctly
+      const thresh = fmtNum(Math.cos(Math.PI * p.pulseWidth));
+      const inner = `cos(${TAU_STR} * ${scaled}${phasePart}) - ${thresh}`;
+      unit = `((${inner}) / (abs(${inner}) + 1e-9))`;
+      break;
+    }
+    case 'sawtooth':
+      // 4-term Fourier saw; coefficient 0.6548 normalizes peak to ~1.0 (measured empirically)
+      unit = `(-0.6548) * (` +
+             `sin(${TAU_STR} * ${scaled}${phasePart})` +
+             ` + sin(2 * ${TAU_STR} * ${scaled}${phasePart}) / 2` +
+             ` + sin(3 * ${TAU_STR} * ${scaled}${phasePart}) / 3` +
+             ` + sin(4 * ${TAU_STR} * ${scaled}${phasePart}) / 4)`;
+      break;
+    case 'sample_hold':
+      // sin(sin(x) * k) is bounded in [-1, 1]; no extra scaling needed
+      unit = `sin(sin(${scaled}${phasePart}) * 12345.67)`;
+      break;
+    case 'inverse_audio': {
+      // Log-mapped to [-1, 1] then scaled. logK = log(100/0.99) ≈ 4.6151.
+      const env = `(0.5 + 0.5 * sin(${TAU_STR} * ${scaled}${phasePart}) + 0.01)`;
+      // log(1/env) - log(0.99)) / 4.6151 * 2 - 1
+      // Simplify: ((log(1) - log(env)) - log(0.99)) / 4.6151 * 2 - 1
+      //         = (-log(env) - log(0.99)) / 4.6151 * 2 - 1
+      // log(0.99) ≈ -0.01005, so -log(env) - (-0.01005) = -log(env) + 0.01005
+      unit = `((0.01005 - log(${env})) * 0.43337 - 1)`;
+      break;
+    }
+    default:
+      unit = '0';
+  }
+
+  // Map unit signal in [-1, 1] to [min, max]: center + halfRange * unit
+  let expr;
+  if (halfRange === 0) {
+    expr = `${fmtNum(center)}`;
+  } else if (center === 0) {
+    expr = `${fmtNum(halfRange)} * ${unit}`;
+  } else {
+    expr = `${fmtNum(center)} + ${fmtNum(halfRange)} * ${unit}`;
+  }
+
+  // Optional hard clamp using abs-based min/max emulation:
+  // min(a, b) = (a + b - abs(a - b)) / 2
+  // max(a, b) = (a + b + abs(a - b)) / 2
+  // clamp(x, lo, hi) = min(max(x, lo), hi)
+  if (p.hardClamp) {
+    const lo = fmtNum(min);
+    const hi = fmtNum(max);
+    // max(expr, lo)
+    const maxed = `((${expr}) + ${lo} + abs((${expr}) - ${lo})) / 2`;
+    // min(maxed, hi)
+    expr = `((${maxed}) + ${hi} - abs((${maxed}) - ${hi})) / 2`;
+  }
+
+  return expr;
+}
+
+function applyInfluence(expr, p) {
+  if (p.influenceMode === 'multiply') return `(${expr}) * '${p.influenceParam}'`;
+  if (p.influenceMode === 'add')      return `(${expr}) + '${p.influenceParam}'`;
+  return expr;
+}
+
+function emitSingle(p) {
+  return applyInfluence(buildBaseExpr(p), p);
+}
+
+function emitXYZ(p) {
+  // Lissajous-style triplet: 0°, 60°, 120° offsets from base phase
+  return {
+    x: applyInfluence(buildBaseExpr(p, p.phase + 0),   p),
+    y: applyInfluence(buildBaseExpr(p, p.phase + 60),  p),
+    z: applyInfluence(buildBaseExpr(p, p.phase + 120), p),
+  };
+}
+
+function fmtNum(n) {
+  if (!isFinite(n)) return '0';
+  if (n === 0) return '0';
+  if (Math.abs(n) < 1e-4 || Math.abs(n) >= 1e6) return n.toExponential(4);
+  // Trim to a sane number of digits, drop trailing zeros
+  return parseFloat(n.toFixed(6)).toString();
+}
+
+function generateAllFormulas() {
+  const lines = [];
+  for (const p of state.parameters) {
+    if (!p.enabled) continue;
+    if (p.type === 'xyz') {
+      const xyz = emitXYZ(p);
+      lines.push(`# ${p.name} (XYZ)`);
+      lines.push(`x: ${xyz.x};`);
+      lines.push(`y: ${xyz.y};`);
+      lines.push(`z: ${xyz.z};`);
+    } else {
+      lines.push(`# ${p.name}`);
+      lines.push(emitSingle(p) + ';');
+    }
+    lines.push('');
+  }
+  return lines.join('\n').trimEnd() || '# No enabled parameters';
+}
+
+/* ---------- Rendering ---------- */
+
+function renderAll() {
+  // Build cards once; subsequent updates patch in-place
+  dom.parametersContainer.innerHTML = '';
+  for (const p of state.parameters) {
+    dom.parametersContainer.appendChild(buildParamCard(p));
+  }
+  refreshAll();
+}
+
+function refreshAll() {
+  dom.totalFramesLabel.textContent = `/ ${state.totalFrames}`;
+  dom.timeline.max = Math.max(0, state.totalFrames - 1);
+  dom.timeline.value = state.currentFrame;
+  dom.currentFrameDisplay.textContent = state.currentFrame;
+  dom.frameNumber.textContent = state.currentFrame;
+  dom.timeDisplay.textContent = (state.currentFrame / state.fps).toFixed(2) + 's';
+  dom.endTimeDisplay.textContent = (state.totalFrames / state.fps).toFixed(2) + 's';
+
+  for (const p of state.parameters) {
+    updateParamCard(p);
+  }
+
+  dom.scriptOutput.textContent = generateAllFormulas();
+}
+
+function buildParamCard(p) {
+  const card = document.createElement('div');
+  card.className = 'param' + (p.enabled ? '' : ' disabled');
+  card.dataset.id = p.id;
+
+  card.innerHTML = `
+    <div class="param-head">
+      <input type="checkbox" class="toggle" data-act="toggle" ${p.enabled ? 'checked' : ''}>
+      <input type="text" class="name" data-act="name" value="${escapeHtml(p.name)}">
+      <span class="badge ${p.type}" data-role="badge">${p.type}</span>
+      <div class="head-actions">
+        <span class="live-value" data-role="live">—</span>
+        <button class="icon-btn" data-act="copyOne" title="Copy this formula">⎘</button>
+        <button class="icon-btn danger" data-act="remove" title="Remove">×</button>
+      </div>
+    </div>
+    <div class="param-body">
+      <div class="grid-2">
+        <div class="field">
+          <label>Type</label>
+          <select data-act="type">
+            <option value="single" ${p.type==='single'?'selected':''}>Single value</option>
+            <option value="xyz" ${p.type==='xyz'?'selected':''}>XYZ vector</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Waveform</label>
+          <select data-act="waveform">
+            <option value="sine" ${p.waveform==='sine'?'selected':''}>Sine</option>
+            <option value="cosine" ${p.waveform==='cosine'?'selected':''}>Cosine</option>
+            <option value="square" ${p.waveform==='square'?'selected':''}>Square</option>
+            <option value="sawtooth" ${p.waveform==='sawtooth'?'selected':''}>Sawtooth</option>
+            <option value="sample_hold" ${p.waveform==='sample_hold'?'selected':''}>Sample &amp; hold</option>
+            <option value="inverse_audio" ${p.waveform==='inverse_audio'?'selected':''}>Inverse audio</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Min</label>
+          <input type="number" step="0.1" value="${p.min}" data-act="min">
+        </div>
+        <div class="field">
+          <label>Max</label>
+          <input type="number" step="0.1" value="${p.max}" data-act="max">
+        </div>
+        <div class="field">
+          <label>Frequency</label>
+          <input type="number" step="0.1" value="${p.frequency}" data-act="frequency">
+        </div>
+        <div class="field">
+          <label>Clock division</label>
+          <select data-act="clockDiv">
+            <option value="0.25" ${p.clockDiv===0.25?'selected':''}>1/16 (×4)</option>
+            <option value="0.5"  ${p.clockDiv===0.5?'selected':''}>1/8 (×2)</option>
+            <option value="1"    ${p.clockDiv===1?'selected':''}>1/4 (×1)</option>
+            <option value="2"    ${p.clockDiv===2?'selected':''}>1/2 (÷2)</option>
+            <option value="4"    ${p.clockDiv===4?'selected':''}>1/1 (÷4)</option>
+            <option value="8"    ${p.clockDiv===8?'selected':''}>2/1 (÷8)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Phase (°)</label>
+          <input type="number" step="1" value="${p.phase}" data-act="phase">
+        </div>
+        <div class="field" data-role="pulse-field" style="${p.waveform==='square' ? '' : 'display:none'}">
+          <label>Pulse width</label>
+          <div class="pulse-row" style="margin-top:0">
+            <input type="range" min="0.05" max="0.95" step="0.05" value="${p.pulseWidth}" data-act="pulseWidth">
+            <span class="pw-readout" data-role="pw-readout">${Math.round(p.pulseWidth * 100)}%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="clamp-row">
+        <label class="clamp-label">
+          <input type="checkbox" class="toggle" data-act="hardClamp" ${p.hardClamp ? 'checked' : ''}>
+          <span>Hard clamp output to [min, max]</span>
+        </label>
+        <span class="range-readout" data-role="range-readout"></span>
+      </div>
+
+      <div class="influence">
+        <div class="section-label">Influence</div>
+        <div class="grid-2">
+          <div class="field">
+            <label>Mode</label>
+            <select data-act="influenceMode">
+              <option value="none"     ${p.influenceMode==='none'?'selected':''}>None (use frame_no)</option>
+              <option value="replace"  ${p.influenceMode==='replace'?'selected':''}>Replace driver</option>
+              <option value="multiply" ${p.influenceMode==='multiply'?'selected':''}>Multiply by</option>
+              <option value="add"      ${p.influenceMode==='add'?'selected':''}>Add to</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Variable</label>
+            <select data-act="influenceParam">
+              ${MANDELBULBER_VARS.map(v => `<option value="${v}" ${p.influenceParam===v?'selected':''}>${v}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="viz"><svg data-role="viz" viewBox="0 0 400 64" preserveAspectRatio="none"></svg></div>
+
+      <div class="formula-preview" data-role="formula"></div>
+    </div>
+  `;
+
+  // Wire up events with delegation
+  card.addEventListener('input', e => onCardInput(e, p));
+  card.addEventListener('change', e => onCardInput(e, p));
+  card.addEventListener('click', e => onCardClick(e, p));
+
+  return card;
+}
+
+function onCardInput(e, p) {
+  const t = e.target;
+  const act = t.dataset.act;
+  if (!act) return;
+  switch (act) {
+    case 'toggle':         p.enabled = t.checked; e.currentTarget.classList.toggle('disabled', !p.enabled); break;
+    case 'name':           p.name = t.value; break;
+    case 'type':           p.type = t.value; e.currentTarget.querySelector('[data-role=badge]').className = 'badge ' + p.type; e.currentTarget.querySelector('[data-role=badge]').textContent = p.type; break;
+    case 'waveform':
+      p.waveform = t.value;
+      e.currentTarget.querySelector('[data-role=pulse-field]').style.display = (p.waveform === 'square') ? '' : 'none';
+      break;
+    case 'min':            p.min = parseFloat(t.value); if (!isFinite(p.min)) p.min = 0; break;
+    case 'max':            p.max = parseFloat(t.value); if (!isFinite(p.max)) p.max = 0; break;
+    case 'hardClamp':      p.hardClamp = t.checked; break;
+    case 'frequency':      p.frequency = parseFloat(t.value) || 0; break;
+    case 'clockDiv':       p.clockDiv = parseFloat(t.value) || 1; break;
+    case 'phase':          p.phase = parseFloat(t.value) || 0; break;
+    case 'pulseWidth':     p.pulseWidth = parseFloat(t.value) || 0.5; e.currentTarget.querySelector('[data-role=pw-readout]').textContent = Math.round(p.pulseWidth * 100) + '%'; break;
+    case 'influenceMode':  p.influenceMode = t.value; break;
+    case 'influenceParam': p.influenceParam = t.value; break;
+    default: return;
+  }
+  refreshAll();
+}
+
+function onCardClick(e, p) {
+  const t = e.target.closest('[data-act]');
+  if (!t) return;
+  const act = t.dataset.act;
+  if (act === 'remove') {
+    state.parameters = state.parameters.filter(x => x.id !== p.id);
+    renderAll();
+  } else if (act === 'copyOne') {
+    let str;
+    if (p.type === 'xyz') {
+      const xyz = emitXYZ(p);
+      str = `x: ${xyz.x};\ny: ${xyz.y};\nz: ${xyz.z};`;
+    } else {
+      str = emitSingle(p) + ';';
+    }
+    copyToClipboard(str, `Copied ${p.name}`);
+  }
+}
+
+function updateParamCard(p) {
+  const card = dom.parametersContainer.querySelector(`[data-id="${p.id}"]`);
+  if (!card) return;
+
+  // Live value
+  const live = card.querySelector('[data-role=live]');
+  if (p.type === 'xyz') {
+    live.textContent = 'XYZ';
+  } else {
+    live.textContent = sampleWave(p, state.currentFrame).toFixed(4);
+  }
+
+  // Range readout (shows derived center ± halfRange so users see the math)
+  const readout = card.querySelector('[data-role=range-readout]');
+  if (readout) {
+    const r = rangeOf(p);
+    if (r.halfRange === 0) {
+      readout.textContent = `constant ${fmtNum(r.center)}`;
+    } else {
+      readout.textContent = `swings ${fmtNum(r.min)} → ${fmtNum(r.max)} (center ${fmtNum(r.center)} ± ${fmtNum(r.halfRange)})`;
+    }
+  }
+
+  // Formula preview
+  const fp = card.querySelector('[data-role=formula]');
+  if (p.type === 'xyz') {
+    const xyz = emitXYZ(p);
+    fp.innerHTML = `<span class="label">XYZ</span><span class="axis">x:</span> ${escapeHtml(xyz.x)};<br><span class="axis">y:</span> ${escapeHtml(xyz.y)};<br><span class="axis">z:</span> ${escapeHtml(xyz.z)};`;
+  } else {
+    fp.innerHTML = `<span class="label">Expression</span>${escapeHtml(emitSingle(p))};`;
+  }
+
+  // Waveform viz
+  drawWaveform(p, card.querySelector('[data-role=viz]'));
+}
+
+function drawWaveform(p, svg) {
+  const W = 400, H = 64, samples = 240;
+  // Sample over the full timeline
+  const values = [];
+  let min = Infinity, max = -Infinity;
+  for (let i = 0; i < samples; i++) {
+    const f = (i / (samples - 1)) * Math.max(1, state.totalFrames - 1);
+    const v = sampleWave(p, f);
+    values.push(v);
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  const span = (max - min) || 1;
+  const pad = 6;
+
+  let d = '';
+  for (let i = 0; i < samples; i++) {
+    const x = (i / (samples - 1)) * W;
+    const y = pad + (1 - (values[i] - min) / span) * (H - 2 * pad);
+    d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+  }
+
+  // Axis (zero / center)
+  const stroke = p.enabled ? 'var(--accent)' : 'var(--text-mut)';
+  const cursorX = (state.currentFrame / Math.max(1, state.totalFrames - 1)) * W;
+
+  svg.innerHTML = `
+    <line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="var(--line-2)" stroke-width="0.5" stroke-dasharray="2 3"/>
+    <path d="${d}" fill="none" stroke="${stroke}" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round"/>
+    <line x1="${cursorX.toFixed(1)}" y1="0" x2="${cursorX.toFixed(1)}" y2="${H}" stroke="var(--text)" stroke-width="0.8" opacity="0.6"/>
+  `;
+}
+
+/* ---------- Helpers ---------- */
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function copyToClipboard(text, msg) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => toast(msg)).catch(() => fallbackCopy(text, msg));
+  } else {
+    fallbackCopy(text, msg);
+  }
+}
+function fallbackCopy(text, msg) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); toast(msg); } catch (_) { toast('Copy failed'); }
+  document.body.removeChild(ta);
+}
+
+let toastTimer = null;
+function toast(msg) {
+  dom.toast.textContent = msg;
+  dom.toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => dom.toast.classList.remove('show'), 1600);
+}
+
+/* ---------- Wire up global controls ---------- */
+
+dom.bpm.addEventListener('input', () => { state.bpm = clampNum(dom.bpm.value, 1, 999, 128); refreshAll(); });
+dom.fps.addEventListener('input', () => { state.fps = clampNum(dom.fps.value, 1, 240, 30); refreshAll(); });
+dom.totalFrames.addEventListener('input', () => {
+  state.totalFrames = clampNum(dom.totalFrames.value, 1, 1000000, 300);
+  if (state.currentFrame >= state.totalFrames) state.currentFrame = state.totalFrames - 1;
+  refreshAll();
+});
+dom.timeline.addEventListener('input', () => { state.currentFrame = parseInt(dom.timeline.value, 10) || 0; refreshAll(); });
+
+dom.playBtn.addEventListener('click', togglePlay);
+dom.addParamBtn.addEventListener('click', () => {
+  state.parameters.push({
+    id: ++state.nextId,
+    name: 'New parameter',
+    type: 'single', waveform: 'sine',
+    min: -1, max: 1, frequency: 1, phase: 0,
+    clockDiv: 1, pulseWidth: 0.5, enabled: true, hardClamp: false,
+    influenceParam: 'frame_no', influenceMode: 'none',
+  });
+  renderAll();
+});
+dom.resetBtn.addEventListener('click', () => {
+  if (state.isPlaying) togglePlay();
+  state.parameters = defaultParameters();
+  state.currentFrame = 0;
+  state.bpm = 128; state.fps = 30; state.totalFrames = 300;
+  dom.bpm.value = state.bpm; dom.fps.value = state.fps; dom.totalFrames.value = state.totalFrames;
+  renderAll();
+});
+dom.copyAllBtn.addEventListener('click', () => copyToClipboard(generateAllFormulas(), 'All formulas copied'));
+dom.copyAllBtn2.addEventListener('click', () => copyToClipboard(generateAllFormulas(), 'All formulas copied'));
+
+function clampNum(v, lo, hi, fallback) {
+  const n = parseFloat(v);
+  if (!isFinite(n)) return fallback;
+  return Math.max(lo, Math.min(hi, n));
+}
+
+function togglePlay() {
+  state.isPlaying = !state.isPlaying;
+  dom.playBtn.textContent = state.isPlaying ? 'Pause' : 'Play';
+  dom.playBtn.classList.toggle('primary', !state.isPlaying);
+  if (state.isPlaying) {
+    state.playInterval = setInterval(() => {
+      state.currentFrame = (state.currentFrame + 1) % state.totalFrames;
+      refreshAll();
+    }, 1000 / state.fps);
+  } else {
+    clearInterval(state.playInterval);
+  }
+}
+
+/* ---------- Boot ---------- */
+
+renderAll();
+</script>
+</body>
+</html>
