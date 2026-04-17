@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mandelbulber — Step Sequencer</title>
+<style>
+  :root {
+    --bg:       #111113;
+    --panel:    #16161a;
+    --panel-2:  #1c1c20;
+    --line:     #2a2a30;
+    --line-2:   #3a3a42;
+    --text:     #e6e6e6;
+    --text-dim: #8a8a92;
+    --text-mut: #5a5a62;
+    --accent:   #c79868;
+    --accent-d: #8a6a48;
+    --row-1:    #c97a5a;   /* warm red-orange */
+    --row-2:    #7a9aa3;   /* desaturated teal */
+    --row-3:    #c9b06a;   /* muted amber */
+    --row-4:    #9a8fb8;   /* dusty mauve */
+    --mono:     ui-monospace, "SF Mono", Menlo, "JetBrains Mono", Consolas, monospace;
+    --sans:     -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  body { padding: 48px 32px 96px; }
+
+  .wrap { max-width: 1240px; margin: 0 auto; }
+
+  header { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 24px; border-bottom: 1px solid var(--line); margin-bottom: 32px; }
+  header h1 { font-size: 18px; font-weight: 500; letter-spacing: -0.01em; }
+  header h1 .accent { color: var(--accent); font-weight: 400; }
+  header .sub { color: var(--text-mut); font-size: 12px; font-family: var(--mono); }
+
+  .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-mut); margin-bottom: 12px; font-weight: 500; }
+
+  /* Globals bar */
+  .globals { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-bottom: 32px; }
+  .globals .cell { background: var(--panel); padding: 16px 18px; }
+  .globals .cell label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-mut); margin-bottom: 8px; }
+  .globals .cell input[type="number"], .globals .cell select {
+    width: 100%; background: transparent; border: none; color: var(--text);
+    font-family: var(--mono); font-size: 22px; padding: 0; outline: none;
+    border-bottom: 1px solid transparent; transition: border-color 120ms ease;
+  }
+  .globals .cell select { font-family: var(--sans); cursor: pointer; }
+  .globals .cell input[type="number"]:focus, .globals .cell select:focus { border-bottom-color: var(--accent); }
+  .globals .cell .value { font-family: var(--mono); font-size: 22px; }
+  .globals .cell .frame-display { display: flex; align-items: baseline; gap: 8px; }
+  .globals .cell .frame-display .total { color: var(--text-mut); font-size: 14px; font-family: var(--mono); }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 8px; margin-bottom: 24px; align-items: center; }
+  .btn {
+    background: transparent; color: var(--text); border: 1px solid var(--line-2);
+    padding: 8px 14px; font-size: 12px; font-family: var(--sans);
+    letter-spacing: 0.02em; cursor: pointer; transition: all 120ms ease;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .btn.primary:hover { background: var(--accent-d); border-color: var(--accent-d); }
+  .btn.ghost { color: var(--text-dim); }
+
+  /* Timeline */
+  .timeline { background: var(--panel); border: 1px solid var(--line); padding: 18px 20px; margin-bottom: 32px; }
+  .timeline-row { display: flex; align-items: center; gap: 16px; }
+  .timeline-row .time-readout { font-family: var(--mono); font-size: 12px; color: var(--text-dim); min-width: 90px; }
+  .timeline-row .scrub { flex: 1; }
+  input[type="range"].scrub {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+    background: var(--line-2); outline: none; cursor: pointer;
+  }
+  input[type="range"].scrub::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--accent); cursor: pointer; border: none;
+  }
+
+  /* Sequencer grid */
+  .sequencer { background: var(--panel); border: 1px solid var(--line); margin-bottom: 32px; padding: 20px; position: relative; overflow: hidden; }
+
+  .step-headers { display: grid; grid-template-columns: 240px 1fr 220px; gap: 16px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); align-items: end; }
+  .step-headers .h { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-mut); }
+  .step-headers .step-numbers { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; }
+  .step-headers .step-numbers span { font-family: var(--mono); font-size: 9px; color: var(--text-mut); text-align: center; }
+  .step-headers .step-numbers span.beat { color: var(--text-dim); font-weight: 600; }
+
+  .row { display: grid; grid-template-columns: 240px 1fr 220px; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: none; }
+
+  .row-label { display: flex; flex-direction: column; gap: 4px; }
+  .row-label .swatch { width: 10px; height: 10px; display: inline-block; margin-right: 6px; vertical-align: middle; }
+  .row-label .var-input {
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+    font-family: var(--mono); font-size: 12px; padding: 6px 8px; outline: none;
+    transition: border-color 120ms ease; width: 100%;
+  }
+  .row-label .var-input:focus { border-color: var(--accent); }
+  .row-label .var-meta { font-size: 10px; color: var(--text-mut); display: flex; gap: 8px; align-items: center; padding-left: 2px; }
+
+  .pads { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; position: relative; }
+  .pad {
+    aspect-ratio: 1 / 1;
+    background: var(--line-2);
+    border: none; cursor: pointer; padding: 0;
+    transition: background 100ms ease, transform 60ms ease;
+    position: relative;
+  }
+  .pad:hover { background: var(--text-mut); }
+  .pad.on { background: var(--row-color, var(--accent)); }
+  .pad.on:hover { filter: brightness(1.15); }
+  .pad.beat-marker::after {
+    content: ""; position: absolute; bottom: -3px; left: 50%; transform: translateX(-50%);
+    width: 2px; height: 2px; background: var(--text-mut);
+  }
+  .pad.playing { box-shadow: inset 0 0 0 2px var(--text); }
+
+  /* Stronger visual separation between rows */
+  .row { padding: 16px 0; border-bottom: 1px solid var(--line); position: relative; }
+  .row + .row { padding-top: 18px; }
+  .row::before {
+    content: ""; position: absolute; left: -20px; top: 16px; bottom: 16px;
+    width: 2px; background: var(--row-color, var(--accent)); opacity: 0.35;
+  }
+
+  /* Row label internals */
+  .row-id-strip { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .row-num {
+    width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+    color: var(--bg); font-family: var(--mono); font-size: 11px; font-weight: 600;
+    flex-shrink: 0;
+  }
+  .row-copy-btn {
+    background: transparent; border: 1px solid var(--line); color: var(--text-mut);
+    font-family: var(--mono); font-size: 10px; padding: 4px 8px; cursor: pointer;
+    transition: all 120ms ease; flex-shrink: 0;
+  }
+  .row-copy-btn:hover { color: var(--row-color, var(--accent)); border-color: var(--row-color, var(--accent)); }
+
+  .row-mode-strip { display: flex; gap: 4px; margin-bottom: 6px; }
+  .row-mode-strip select {
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+    font-family: var(--sans); font-size: 11px; padding: 4px 6px; outline: none; cursor: pointer; flex: 1;
+    transition: border-color 120ms ease;
+  }
+  .row-mode-strip select:focus { border-color: var(--accent); }
+  .row-mode-strip .mode-select { color: var(--row-color, var(--text)); }
+
+  .row-controls { display: flex; flex-direction: column; gap: 6px; }
+  .row-controls .ctrl { display: grid; grid-template-columns: 60px 1fr 56px; gap: 8px; align-items: center; }
+  .row-controls .ctrl label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-mut); }
+  .row-controls .ctrl input[type="number"] {
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+    font-family: var(--mono); font-size: 11px; padding: 4px 6px; outline: none; width: 100%;
+  }
+  .row-controls .ctrl input[type="number"]:focus { border-color: var(--accent); }
+  .row-controls .ctrl input[type="range"] {
+    -webkit-appearance: none; appearance: none; height: 2px; background: var(--line-2); outline: none; width: 100%;
+  }
+  .row-controls .ctrl input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--row-color, var(--accent)); border: none; cursor: pointer;
+  }
+  .row-controls .ctrl .readout { font-family: var(--mono); font-size: 10px; color: var(--text-dim); text-align: right; }
+  .row-controls .ctrl-meta { font-family: var(--mono); font-size: 9px; color: var(--text-mut); padding-left: 68px; margin-top: -2px; letter-spacing: 0.02em; }
+
+  .row-actions { display: flex; gap: 4px; margin-top: 4px; }
+  .row-actions .mini-btn {
+    background: transparent; border: 1px solid var(--line); color: var(--text-mut);
+    font-size: 10px; padding: 3px 8px; cursor: pointer; font-family: var(--mono);
+    transition: all 120ms ease;
+  }
+  .row-actions .mini-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Output */
+  .output { background: var(--panel); border: 1px solid var(--line); margin-bottom: 32px; }
+  .output-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .output-head h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); font-weight: 500; }
+  .output-head h3 .frame-num { color: var(--accent); font-family: var(--mono); }
+  .output pre {
+    font-family: var(--mono); font-size: 12px; color: var(--text); padding: 18px;
+    background: var(--bg); margin: 0; white-space: pre-wrap; word-break: break-word;
+    line-height: 1.65; max-height: 380px; overflow: auto;
+  }
+
+  /* Per-row preview readout */
+  .live-value { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+  .live-value .num { color: var(--row-color, var(--accent)); }
+
+  /* Notes */
+  .notes { font-size: 12px; color: var(--text-dim); display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; padding-top: 24px; border-top: 1px solid var(--line); }
+  .notes h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text); margin-bottom: 10px; font-weight: 500; }
+  .notes ul { list-style: none; }
+  .notes li { padding: 3px 0; color: var(--text-dim); }
+  .notes li::before { content: "→ "; color: var(--text-mut); }
+  .notes code { font-family: var(--mono); font-size: 11px; color: var(--accent); background: var(--panel); padding: 1px 5px; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--panel); border: 1px solid var(--accent); color: var(--text); padding: 10px 18px; font-size: 12px; font-family: var(--mono); opacity: 0; transition: all 200ms ease; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  ::selection { background: var(--accent); color: var(--bg); }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--line-2); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Mandelbulber <span class="accent">·</span> Step Sequencer</h1>
+    <span class="sub">16 steps · 4 parameters · beat-aligned</span>
+  </header>
+
+  <div class="section-label">Project</div>
+  <div class="globals">
+    <div class="cell">
+      <label>BPM</label>
+      <input type="number" id="bpm" value="128" min="20" max="300">
+    </div>
+    <div class="cell">
+      <label>FPS</label>
+      <input type="number" id="fps" value="30" min="1" max="120">
+    </div>
+    <div class="cell">
+      <label>Steps per bar</label>
+      <select id="stepsPerBar">
+        <option value="8">8 (1/8 notes)</option>
+        <option value="16" selected>16 (1/16 notes)</option>
+        <option value="32">32 (1/32 notes)</option>
+      </select>
+    </div>
+    <div class="cell">
+      <label>Bar length</label>
+      <div class="value" id="barLengthDisplay">— frames</div>
+    </div>
+    <div class="cell">
+      <label>Current frame</label>
+      <div class="frame-display">
+        <span class="value" id="currentFrameDisplay">0</span>
+        <span class="total" id="totalFramesLabel">/ 300</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn primary" id="playBtn">Play</button>
+    <button class="btn" id="clearAllBtn">Clear all</button>
+    <button class="btn ghost" id="resetBtn">Reset to demo</button>
+    <span style="flex:1"></span>
+    <button class="btn" id="copyAllBtn">Copy all formulas</button>
+  </div>
+
+  <div class="timeline">
+    <div class="timeline-row">
+      <span class="time-readout" id="timeDisplay">0.00s</span>
+      <input type="range" class="scrub" id="timeline" min="0" max="299" value="0">
+      <span class="time-readout" id="endTimeDisplay" style="text-align:right">10.00s</span>
+    </div>
+  </div>
+
+  <div class="section-label">Sequencer</div>
+  <div class="sequencer">
+    <div class="step-headers">
+      <div class="h">Parameter</div>
+      <div>
+        <div class="step-numbers" id="stepNumbers"></div>
+      </div>
+      <div class="h">Values · Glide</div>
+    </div>
+    <div id="rowsContainer"></div>
+  </div>
+
+  <div class="section-label">Generated formulas</div>
+  <div class="output">
+    <div class="output-head">
+      <h3>Per-parameter expressions at frame <span class="frame-num" id="frameNumber">0</span></h3>
+      <button class="btn" id="copyAllBtn2">Copy</button>
+    </div>
+    <pre id="scriptOutput"></pre>
+  </div>
+
+  <div class="notes">
+    <div>
+      <h4>Displace vs Replace</h4>
+      <ul>
+        <li><strong>Displace</strong> (default) — formula <em>adds</em> to the parameter's existing slider value. Off=0 / On=0.5 means "leave it alone, then briefly add 0.5 on each lit step." Keeps all your manually-tuned setup intact.</li>
+        <li><strong>Replace</strong> — formula <em>sets</em> the parameter outright, ignoring the slider. Use only when you want the script to be the sole source of truth for that parameter.</li>
+        <li>The most common "no action" surprise: using Replace mode with values far from where the slider was. The camera teleports out of frame and you see nothing. Switch to Displace.</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Release · numeric type · per-row copy</h4>
+      <ul>
+        <li><strong>Release</strong> is measured in <em>steps</em>. 0.25 = razor transient (one frame snap), 4 = pad-like glide that smears across a quarter-bar. The frame-equivalent shows live below the slider.</li>
+        <li><strong>Type</strong>: Float (default), Integer (rounds inputs), Unsigned (clamps output ≥ 0 inside the formula — important for iteration counts, bailouts, etc.)</li>
+        <li>Each row has its own <code>copy</code> button — grab one formula at a time and paste into the right Mandelbulber field</li>
+        <li>For audio reactivity: switch to Displace, set On value to <code>'audio_amplitude'</code>… actually that won't work since On is a number field. Use the LFO tool with audio influence for that.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Copied</div>
+
+<script>
+"use strict";
+
+/* ---------- State ---------- */
+
+const ROW_COLORS = ['var(--row-1)', 'var(--row-2)', 'var(--row-3)', 'var(--row-4)'];
+
+const COMMON_VARS = [
+  'fractal1_transf_scale',
+  'main_target.y',
+  'main_mat1_coloring_palette_offset',
+  'main_ambient_occlusion',
+  'main_brightness',
+  'main_camera_distance_to_target',
+  'main_light_intensity',
+  'main_bailout',
+  'main_basic_fog_visibility',
+];
+
+const state = {
+  bpm: 128,
+  fps: 30,
+  stepsPerBar: 16,
+  currentFrame: 0,
+  totalFrames: 300,
+  isPlaying: false,
+  playInterval: null,
+  rows: defaultRows(),
+};
+
+function defaultRows() {
+  // mode:    'replace'  -> formula sets parameter to (off + range*env)
+  //          'displace' -> formula sets parameter to (slider_value + off + range*env)  i.e. additive
+  // valueType: 'float' | 'int' | 'unsigned'
+  // release: pulse half-life expressed in *steps* (0.25 = razor-sharp transient, 4 = pad-like glide)
+  return [
+    { id: 1, variable: 'fractal1_transf_scale',            mode: 'displace', valueType: 'float',    offValue: 0.0,  onValue: 0.5, release: 1.0, steps: parsePattern('x...x.....x.....') },
+    { id: 2, variable: 'main_target.y',                    mode: 'displace', valueType: 'float',    offValue: 0.0,  onValue: 0.3, release: 1.5, steps: parsePattern('....x.......x...') },
+    { id: 3, variable: 'main_mat1_coloring_palette_offset',mode: 'displace', valueType: 'float',    offValue: 0.0,  onValue: 80,  release: 0.5, steps: parsePattern('..x...x.....x..x') },
+    { id: 4, variable: 'main_ambient_occlusion',           mode: 'displace', valueType: 'unsigned', offValue: 0.0,  onValue: 0.6, release: 2.0, steps: parsePattern('....x.......x...') },
+  ];
+}
+
+// Convert "release in steps" (the half-amplitude width) to the cosine-bump sharpness exponent.
+// Bump = ((1+cos(phi))/2)^n. We solve for n such that bump = 0.5 when phi = 2π * release / stepsPerBar.
+function releaseToSharpness(releaseSteps, stepsPerBar) {
+  const r = Math.max(0.1, releaseSteps);
+  const phi = 2 * Math.PI * r / stepsPerBar;
+  const c = (1 + Math.cos(phi)) / 2;
+  if (c <= 0 || c >= 1) return 1;
+  return Math.max(1, Math.round(Math.log(0.5) / Math.log(c)));
+}
+
+function parsePattern(s) {
+  // 16-char string, x = on, . = off
+  const arr = new Array(16).fill(false);
+  for (let i = 0; i < Math.min(s.length, 16); i++) arr[i] = s[i] === 'x';
+  return arr;
+}
+
+/* ---------- DOM ---------- */
+
+const $ = id => document.getElementById(id);
+const dom = {
+  bpm: $('bpm'), fps: $('fps'), stepsPerBar: $('stepsPerBar'),
+  barLengthDisplay: $('barLengthDisplay'),
+  currentFrameDisplay: $('currentFrameDisplay'), totalFramesLabel: $('totalFramesLabel'),
+  playBtn: $('playBtn'), clearAllBtn: $('clearAllBtn'), resetBtn: $('resetBtn'),
+  copyAllBtn: $('copyAllBtn'), copyAllBtn2: $('copyAllBtn2'),
+  timeline: $('timeline'), timeDisplay: $('timeDisplay'), endTimeDisplay: $('endTimeDisplay'),
+  stepNumbers: $('stepNumbers'),
+  rowsContainer: $('rowsContainer'),
+  scriptOutput: $('scriptOutput'), frameNumber: $('frameNumber'),
+  toast: $('toast'),
+};
+
+/* ---------- Math helpers ---------- */
+
+function barFrames() {
+  // (beats per bar) * (seconds per beat) * (frames per second)
+  // We treat 1 bar = 4 beats = stepsPerBar steps. Steps per beat = stepsPerBar/4.
+  return (4 * 60 / state.bpm) * state.fps;
+}
+
+function fmtNum(n) {
+  if (!isFinite(n)) return '0';
+  if (n === 0) return '0';
+  if (Math.abs(n) < 1e-4 || Math.abs(n) >= 1e6) return n.toExponential(4);
+  return parseFloat(n.toFixed(6)).toString();
+}
+
+/* ---------- Sample (JS preview) ---------- */
+
+function sampleRow(row, frame) {
+  const Cf = barFrames();
+  if (Cf <= 0) return row.offValue;
+  const N = state.stepsPerBar;
+  const sharpness = releaseToSharpness(row.release, N);
+  let sum = 0;
+  for (let i = 0; i < N; i++) {
+    if (!row.steps[i]) continue;
+    const phase = 2 * Math.PI * (frame / Cf - i / N);
+    const bump = Math.pow((1 + Math.cos(phase)) / 2, sharpness);
+    sum += bump;
+  }
+  const env = Math.min(1, Math.max(0, sum));
+  let v = row.offValue + (row.onValue - row.offValue) * env;
+  // Displace mode preview shows just the modulation since we don't know the actual slider value
+  // Type clamping
+  if (row.valueType === 'unsigned' && v < 0) v = 0;
+  if (row.valueType === 'int') v = Math.round(v);
+  return v;
+}
+
+/* ---------- Emit Mandelbulber formula ---------- */
+
+function emitRow(row) {
+  const Cf = barFrames();
+  const N = state.stepsPerBar;
+
+  const active = [];
+  for (let i = 0; i < N; i++) if (row.steps[i]) active.push(i);
+
+  // Compose the modulation expression: off + (on - off) * env
+  let modExpr;
+  if (active.length === 0) {
+    modExpr = `${fmtNum(row.offValue)}`;
+  } else {
+    const cf = fmtNum(Cf);
+    const sharpness = releaseToSharpness(row.release, N);
+    const TAU = '6.28318';
+    const bumps = active.map(i => {
+      const offsetRad = (2 * Math.PI * i / N);
+      return `pow((1 + cos(${TAU} * 'frame_no' / ${cf} - ${fmtNum(offsetRad)})) / 2, ${sharpness})`;
+    });
+    const sum = bumps.length === 1 ? bumps[0] : `(${bumps.join(' + ')})`;
+    // clamp01(sum) — needed when bumps overlap
+    const maxedAtZero = `(${sum} + abs(${sum})) / 2`;
+    const env = `((${maxedAtZero}) + 1 - abs((${maxedAtZero}) - 1)) / 2`;
+
+    const off = fmtNum(row.offValue);
+    const span = row.onValue - row.offValue;
+    if (span === 0) modExpr = off;
+    else modExpr = `${off} + ${fmtNum(span)} * ${env}`;
+  }
+
+  // Mode: replace = formula stands alone   |   displace = add to current parameter value
+  let expr;
+  if (row.mode === 'displace' && row.variable) {
+    expr = `'${row.variable}' + (${modExpr})`;
+  } else {
+    expr = modExpr;
+  }
+
+  // Type clamping
+  if (row.valueType === 'unsigned') {
+    // max(expr, 0) = (expr + abs(expr)) / 2
+    expr = `((${expr}) + abs(${expr})) / 2`;
+  }
+  // Integer: Mandelbulber casts to int internally for integer parameters; no rounding emitted.
+  // (No portable floor() in MB expression set per the docs we have.)
+
+  return expr;
+}
+
+function generateAllFormulas() {
+  const lines = [];
+  state.rows.forEach((row, idx) => {
+    const modeTag = row.mode === 'displace' ? '(displace · adds to slider)' : '(replace · sets parameter)';
+    const typeTag = row.valueType === 'int' ? 'int' : (row.valueType === 'unsigned' ? 'unsigned' : 'float');
+    lines.push(`# ────────── Row ${idx + 1} · '${row.variable}' · ${modeTag} · ${typeTag} ──────────`);
+    lines.push(emitRow(row) + ';');
+    lines.push('');
+  });
+  return lines.join('\n').trimEnd();
+}
+
+/* ---------- Render ---------- */
+
+function renderStepHeaders() {
+  const N = state.stepsPerBar;
+  let html = '';
+  for (let i = 0; i < N; i++) {
+    const isBeat = (i % (N / 4) === 0);
+    html += `<span class="${isBeat ? 'beat' : ''}">${isBeat ? Math.floor(i / (N / 4)) + 1 : ''}</span>`;
+  }
+  dom.stepNumbers.innerHTML = html;
+}
+
+function renderRows() {
+  dom.rowsContainer.innerHTML = '';
+  state.rows.forEach((row, rowIdx) => {
+    dom.rowsContainer.appendChild(buildRow(row, rowIdx));
+  });
+  refreshAll();
+}
+
+function buildRow(row, rowIdx) {
+  const el = document.createElement('div');
+  el.className = 'row';
+  el.dataset.id = row.id;
+  el.style.setProperty('--row-color', ROW_COLORS[rowIdx % ROW_COLORS.length]);
+
+  let padsHtml = '';
+  const N = state.stepsPerBar;
+  for (let i = 0; i < N; i++) {
+    const on = row.steps[i] ? 'on' : '';
+    const beat = (i % (N / 4) === 0) ? 'beat-marker' : '';
+    padsHtml += `<button class="pad ${on} ${beat}" data-step="${i}" title="Step ${i + 1}"></button>`;
+  }
+
+  const sharpness = releaseToSharpness(row.release, N);
+
+  el.innerHTML = `
+    <div class="row-label">
+      <div class="row-id-strip">
+        <span class="row-num" style="background:${ROW_COLORS[rowIdx % ROW_COLORS.length]}">${rowIdx + 1}</span>
+        <input type="text" class="var-input" value="${escapeHtml(row.variable)}" data-act="variable" list="vars-${row.id}" placeholder="parameter name">
+        <button class="row-copy-btn" data-act="copyOne" title="Copy this row's formula">copy</button>
+      </div>
+      <datalist id="vars-${row.id}">
+        ${COMMON_VARS.map(v => `<option value="${v}"></option>`).join('')}
+      </datalist>
+      <div class="row-mode-strip">
+        <select class="mode-select" data-act="mode" title="Replace = formula sets the parameter; Displace = formula adds to the slider value">
+          <option value="displace" ${row.mode==='displace'?'selected':''}>Displace</option>
+          <option value="replace"  ${row.mode==='replace'?'selected':''}>Replace</option>
+        </select>
+        <select class="type-select" data-act="valueType" title="Constrain the output's numeric domain">
+          <option value="float"    ${row.valueType==='float'?'selected':''}>Float ±</option>
+          <option value="int"      ${row.valueType==='int'?'selected':''}>Integer ±</option>
+          <option value="unsigned" ${row.valueType==='unsigned'?'selected':''}>Unsigned</option>
+        </select>
+      </div>
+      <div class="var-meta">
+        <span class="live-value">live: <span class="num" data-role="live">—</span></span>
+      </div>
+      <div class="row-actions">
+        <button class="mini-btn" data-act="fillEvery2">Every 2</button>
+        <button class="mini-btn" data-act="fillEvery4">Every 4</button>
+        <button class="mini-btn" data-act="invert">Invert</button>
+        <button class="mini-btn" data-act="clear">Clear</button>
+      </div>
+    </div>
+    <div class="pads">${padsHtml}</div>
+    <div class="row-controls">
+      <div class="ctrl">
+        <label>Off</label>
+        <input type="number" step="${row.valueType==='int'?1:0.1}" value="${row.offValue}" data-act="offValue">
+        <span></span>
+      </div>
+      <div class="ctrl">
+        <label>On</label>
+        <input type="number" step="${row.valueType==='int'?1:0.1}" value="${row.onValue}" data-act="onValue">
+        <span></span>
+      </div>
+      <div class="ctrl">
+        <label>Release</label>
+        <input type="range" min="0.25" max="4" step="0.25" value="${row.release}" data-act="release">
+        <span class="readout" data-role="release-readout">${row.release.toFixed(2)} st</span>
+      </div>
+      <div class="ctrl-meta">
+        <span data-role="release-frames">≈ ${(row.release * barFrames() / N).toFixed(1)} frames · sharpness ${sharpness}</span>
+      </div>
+    </div>
+  `;
+
+  el.addEventListener('click', e => onRowClick(e, row, rowIdx));
+  el.addEventListener('input', e => onRowInput(e, row, rowIdx));
+  el.addEventListener('change', e => onRowInput(e, row, rowIdx));
+
+  return el;
+}
+
+function onRowClick(e, row, rowIdx) {
+  const pad = e.target.closest('.pad');
+  if (pad) {
+    const step = parseInt(pad.dataset.step, 10);
+    row.steps[step] = !row.steps[step];
+    pad.classList.toggle('on', row.steps[step]);
+    refreshAll();
+    return;
+  }
+  const copyBtn = e.target.closest('.row-copy-btn');
+  if (copyBtn) {
+    const formula = emitRow(row) + ';';
+    const headed = `# ${row.mode === 'displace' ? '(displace) ' : ''}'${row.variable}'\n${formula}`;
+    copyToClipboard(headed, `Row ${rowIdx + 1} copied`);
+    return;
+  }
+  const btn = e.target.closest('.mini-btn');
+  if (btn) {
+    const act = btn.dataset.act;
+    const N = state.stepsPerBar;
+    if (act === 'clear') row.steps = new Array(N).fill(false);
+    else if (act === 'invert') row.steps = row.steps.map(s => !s);
+    else if (act === 'fillEvery2') { row.steps = new Array(N).fill(false); for (let i = 0; i < N; i += 2) row.steps[i] = true; }
+    else if (act === 'fillEvery4') { row.steps = new Array(N).fill(false); for (let i = 0; i < N; i += 4) row.steps[i] = true; }
+    refreshRowPads(row, rowIdx);
+    refreshAll();
+  }
+}
+
+function onRowInput(e, row, rowIdx) {
+  const t = e.target;
+  const act = t.dataset.act;
+  if (!act) return;
+  switch (act) {
+    case 'variable': row.variable = t.value.trim() || 'unnamed'; break;
+    case 'offValue': {
+      let v = parseFloat(t.value); if (!isFinite(v)) v = 0;
+      if (row.valueType === 'int') v = Math.round(v);
+      if (row.valueType === 'unsigned' && v < 0) v = 0;
+      row.offValue = v;
+      break;
+    }
+    case 'onValue': {
+      let v = parseFloat(t.value); if (!isFinite(v)) v = 0;
+      if (row.valueType === 'int') v = Math.round(v);
+      if (row.valueType === 'unsigned' && v < 0) v = 0;
+      row.onValue = v;
+      break;
+    }
+    case 'mode':       row.mode = t.value; break;
+    case 'valueType':
+      row.valueType = t.value;
+      // Coerce existing values into the new type
+      if (row.valueType === 'int') { row.offValue = Math.round(row.offValue); row.onValue = Math.round(row.onValue); }
+      if (row.valueType === 'unsigned') { row.offValue = Math.max(0, row.offValue); row.onValue = Math.max(0, row.onValue); }
+      // Re-render this row only so the input step="" attributes update
+      const rowEl = dom.rowsContainer.querySelector(`[data-id="${row.id}"]`);
+      if (rowEl) rowEl.replaceWith(buildRow(row, rowIdx));
+      break;
+    case 'release':
+      row.release = parseFloat(t.value) || 1;
+      const N = state.stepsPerBar;
+      const sharp = releaseToSharpness(row.release, N);
+      const frames = (row.release * barFrames() / N).toFixed(1);
+      e.currentTarget.querySelector('[data-role=release-readout]').textContent = row.release.toFixed(2) + ' st';
+      e.currentTarget.querySelector('[data-role=release-frames]').textContent = `≈ ${frames} frames · sharpness ${sharp}`;
+      break;
+    default: return;
+  }
+  refreshAll();
+}
+
+function refreshRowPads(row, rowIdx) {
+  const el = dom.rowsContainer.querySelector(`[data-id="${row.id}"]`);
+  if (!el) return;
+  el.querySelectorAll('.pad').forEach((pad, i) => {
+    pad.classList.toggle('on', !!row.steps[i]);
+  });
+}
+
+function refreshAll() {
+  // Bar length display
+  const Cf = barFrames();
+  dom.barLengthDisplay.textContent = `${Cf.toFixed(1)} fr · ${(Cf / state.fps).toFixed(2)}s`;
+  // Total frames default to 4 bars for the timeline
+  state.totalFrames = Math.max(1, Math.round(Cf * 4));
+  dom.totalFramesLabel.textContent = `/ ${state.totalFrames}`;
+  dom.timeline.max = Math.max(0, state.totalFrames - 1);
+  dom.timeline.value = Math.min(state.currentFrame, state.totalFrames - 1);
+  state.currentFrame = parseInt(dom.timeline.value, 10);
+
+  dom.currentFrameDisplay.textContent = state.currentFrame;
+  dom.frameNumber.textContent = state.currentFrame;
+  dom.timeDisplay.textContent = (state.currentFrame / state.fps).toFixed(2) + 's';
+  dom.endTimeDisplay.textContent = (state.totalFrames / state.fps).toFixed(2) + 's';
+
+  // Per-row live values & playhead
+  const stepIdx = computePlayingStep();
+  state.rows.forEach((row, rowIdx) => {
+    const el = dom.rowsContainer.querySelector(`[data-id="${row.id}"]`);
+    if (!el) return;
+    el.querySelector('[data-role=live]').textContent = sampleRow(row, state.currentFrame).toFixed(4);
+    // Highlight playing pad
+    el.querySelectorAll('.pad').forEach((pad, i) => {
+      pad.classList.toggle('playing', i === stepIdx);
+    });
+  });
+
+  dom.scriptOutput.textContent = generateAllFormulas();
+}
+
+function computePlayingStep() {
+  const Cf = barFrames();
+  if (Cf <= 0) return -1;
+  const N = state.stepsPerBar;
+  const cyclePos = ((state.currentFrame % Cf) + Cf) % Cf;
+  return Math.floor((cyclePos / Cf) * N);
+}
+
+/* ---------- Helpers ---------- */
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function copyToClipboard(text, msg) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => toast(msg)).catch(() => fallbackCopy(text, msg));
+  } else {
+    fallbackCopy(text, msg);
+  }
+}
+function fallbackCopy(text, msg) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); toast(msg); } catch (_) { toast('Copy failed'); }
+  document.body.removeChild(ta);
+}
+
+let toastTimer = null;
+function toast(msg) {
+  dom.toast.textContent = msg;
+  dom.toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => dom.toast.classList.remove('show'), 1600);
+}
+
+/* ---------- Wire-up ---------- */
+
+dom.bpm.addEventListener('input', () => { state.bpm = clampNum(dom.bpm.value, 1, 999, 128); refreshAll(); });
+dom.fps.addEventListener('input', () => { state.fps = clampNum(dom.fps.value, 1, 240, 30); refreshAll(); });
+dom.stepsPerBar.addEventListener('change', () => {
+  const newN = parseInt(dom.stepsPerBar.value, 10);
+  // Resize each row's steps
+  state.rows.forEach(row => {
+    const oldSteps = row.steps;
+    const newSteps = new Array(newN).fill(false);
+    for (let i = 0; i < Math.min(oldSteps.length, newN); i++) newSteps[i] = oldSteps[i];
+    row.steps = newSteps;
+  });
+  state.stepsPerBar = newN;
+  renderStepHeaders();
+  renderRows();
+});
+dom.timeline.addEventListener('input', () => { state.currentFrame = parseInt(dom.timeline.value, 10) || 0; refreshAll(); });
+dom.playBtn.addEventListener('click', togglePlay);
+dom.clearAllBtn.addEventListener('click', () => {
+  if (!confirm('Clear every step on every row?')) return;
+  state.rows.forEach(row => row.steps = new Array(state.stepsPerBar).fill(false));
+  renderRows();
+});
+dom.resetBtn.addEventListener('click', () => {
+  if (state.isPlaying) togglePlay();
+  state.rows = defaultRows();
+  state.currentFrame = 0;
+  state.bpm = 128; state.fps = 30; state.stepsPerBar = 16;
+  dom.bpm.value = 128; dom.fps.value = 30; dom.stepsPerBar.value = '16';
+  renderStepHeaders();
+  renderRows();
+});
+dom.copyAllBtn.addEventListener('click', () => copyToClipboard(generateAllFormulas(), 'All formulas copied'));
+dom.copyAllBtn2.addEventListener('click', () => copyToClipboard(generateAllFormulas(), 'All formulas copied'));
+
+function clampNum(v, lo, hi, fallback) {
+  const n = parseFloat(v);
+  if (!isFinite(n)) return fallback;
+  return Math.max(lo, Math.min(hi, n));
+}
+
+function togglePlay() {
+  state.isPlaying = !state.isPlaying;
+  dom.playBtn.textContent = state.isPlaying ? 'Pause' : 'Play';
+  if (state.isPlaying) {
+    state.playInterval = setInterval(() => {
+      state.currentFrame = (state.currentFrame + 1) % state.totalFrames;
+      refreshAll();
+    }, 1000 / state.fps);
+  } else {
+    clearInterval(state.playInterval);
+  }
+}
+
+/* ---------- Boot ---------- */
+
+renderStepHeaders();
+renderRows();
+</script>
+</body>
+</html>
