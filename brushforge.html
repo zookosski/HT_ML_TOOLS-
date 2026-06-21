@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brushforge — Animated Brush Studio for PD Howler</title>
+<style>
+  :root {
+    --bg: #14131a; --panel: #1d1c26; --panel-2: #25232f; --line: #34313f;
+    --ink: #ece9f5; --ink-dim: #9b96ad; --ink-faint: #6c6780;
+    --accent: #ff5fa2; --accent-2: #46e0d0; --radius: 10px;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --sans: "Inter", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--sans);
+    font-size: 14px; line-height: 1.5; display: grid;
+    grid-template-columns: 320px 1fr; grid-template-rows: auto 1fr; min-height: 100vh;
+  }
+  header {
+    grid-column: 1 / -1; display: flex; align-items: baseline; gap: 14px;
+    padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  header h1 .mark { color: var(--accent); }
+  header .sub { font-size: 12px; color: var(--ink-faint); font-family: var(--mono); }
+  .rail {
+    background: var(--panel); border-right: 1px solid var(--line); padding: 18px;
+    overflow-y: auto; display: flex; flex-direction: column; gap: 20px;
+  }
+  .group { display: flex; flex-direction: column; gap: 12px; }
+  .group > .glabel {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.09em;
+    color: var(--ink-faint); font-weight: 600;
+  }
+  .ctrl { display: flex; flex-direction: column; gap: 5px; }
+  .ctrl .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .ctrl label { font-size: 13px; color: var(--ink-dim); }
+  .ctrl .val { font-family: var(--mono); font-size: 12px; color: var(--accent-2); }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+    border-radius: 3px; background: var(--line); outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 15px; height: 15px;
+    border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 15px; height: 15px; border-radius: 50%; background: var(--accent);
+    border: 2px solid var(--bg); cursor: pointer;
+  }
+  select {
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 7px; padding: 7px 9px; font-family: var(--sans); font-size: 13px; cursor: pointer;
+  }
+  input[type=color] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 30px;
+    border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2);
+    cursor: pointer; padding: 3px;
+  }
+  input[type=color]::-webkit-color-swatch { border: none; border-radius: 4px; }
+  input[type=color]::-moz-color-swatch { border: none; border-radius: 4px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+  .seg button {
+    flex: 1; background: var(--panel-2); color: var(--ink-dim); border: none;
+    padding: 7px 0; font-size: 12px; cursor: pointer; font-family: var(--sans);
+  }
+  .seg button.on { background: var(--accent); color: #1a0f15; font-weight: 600; }
+  .params { display: none; flex-direction: column; gap: 12px; }
+  .params.show { display: flex; }
+  .stage {
+    padding: 24px; display: flex; flex-direction: column; gap: 18px;
+    align-items: center; justify-content: flex-start; overflow-y: auto;
+  }
+  .canvas-wrap {
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: conic-gradient(#2a2833 90deg, #211f29 90deg 180deg, #2a2833 180deg 270deg, #211f29 270deg) 0 0 / 20px 20px;
+    padding: 0; line-height: 0; position: relative;
+  }
+  .canvas-wrap.black { background: #000; }
+  #preview { image-rendering: pixelated; border-radius: var(--radius); display: block; }
+  .transport { display: flex; align-items: center; gap: 14px; width: 100%; max-width: 520px; }
+  .transport button.play {
+    background: var(--accent); color: #1a0f15; border: none; width: 40px; height: 40px;
+    border-radius: 50%; cursor: pointer; font-size: 15px; display: grid; place-items: center; flex-shrink: 0;
+  }
+  #scrub { flex: 1; }
+  .frame-read { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); min-width: 64px; text-align: right; }
+  .export {
+    display: flex; flex-direction: column; gap: 10px; margin-top: auto;
+    padding-top: 18px; border-top: 1px solid var(--line);
+  }
+  .export .btns { display: flex; gap: 10px; }
+  .export button {
+    flex: 1; border: none; border-radius: 8px; padding: 11px 0; font-size: 13px;
+    font-weight: 600; cursor: pointer; font-family: var(--sans);
+  }
+  .btn-anb { background: var(--accent); color: #1a0f15; }
+  .btn-dwa { background: var(--accent-2); color: #0a1a18; }
+  .export .note { font-size: 11px; color: var(--ink-faint); font-family: var(--mono); }
+  .hint { font-size: 12px; color: var(--ink-faint); line-height: 1.45; }
+  .drop {
+    border: 1.5px dashed var(--line); border-radius: 9px; padding: 22px 12px;
+    text-align: center; color: var(--ink-dim); font-size: 13px; cursor: pointer;
+    transition: border-color .15s, background .15s; line-height: 1.5;
+  }
+  .drop span { font-size: 11px; color: var(--ink-faint); }
+  .drop.over { border-color: var(--accent); background: rgba(255,95,162,0.07); color: var(--ink); }
+  .filmstrip {
+    display: flex; flex-wrap: wrap; gap: 7px; min-height: 8px;
+  }
+  .thumb {
+    position: relative; width: 52px; height: 52px; border-radius: 6px;
+    border: 1px solid var(--line); cursor: grab; overflow: hidden;
+    background: conic-gradient(#2a2833 90deg,#211f29 90deg 180deg,#2a2833 180deg 270deg,#211f29 270deg) 0 0/12px 12px;
+  }
+  .thumb canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+  .thumb.dragging { opacity: .4; cursor: grabbing; }
+  .thumb.dragover { border-color: var(--accent); }
+  .thumb .del {
+    position: absolute; top: 1px; right: 1px; width: 15px; height: 15px;
+    border-radius: 4px; background: rgba(20,19,26,0.82); color: var(--ink-dim);
+    border: none; font-size: 12px; line-height: 13px; cursor: pointer; display: none;
+  }
+  .thumb:hover .del { display: block; }
+  .thumb .num {
+    position: absolute; bottom: 1px; left: 2px; font-family: var(--mono);
+    font-size: 9px; color: var(--ink); text-shadow: 0 0 2px #000; pointer-events: none;
+  }
+  .expr {
+    width: 100%; min-height: 64px; resize: vertical; background: var(--panel-2);
+    color: var(--accent-2); border: 1px solid var(--line); border-radius: 7px;
+    padding: 9px; font-family: var(--mono); font-size: 12px; line-height: 1.5; outline: none;
+  }
+  .expr:focus { border-color: var(--accent); }
+  .exprErr { font-family: var(--mono); font-size: 11px; color: #ff6b6b; min-height: 14px; }
+  .fx { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .fxhead {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    font-size: 13px; color: var(--ink-dim); cursor: pointer; background: var(--panel-2); user-select: none;
+  }
+  .fxhead input { accent-color: var(--accent); cursor: pointer; }
+  .fxbody { display: none; flex-direction: column; gap: 10px; padding: 10px; }
+  .fxbody.show { display: flex; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Brush<span class="mark">forge</span></h1>
+  <span class="sub">animated brush studio · exports .anb / .dwa for PD Howler</span>
+</header>
+
+<aside class="rail">
+  <div class="group">
+    <span class="glabel">Mode</span>
+    <div class="seg" id="modeSeg">
+      <button data-mode="procedural" class="on">Procedural</button>
+      <button data-mode="collage">Collage</button>
+      <button data-mode="function">Function</button>
+      <button data-mode="particles">Particles</button>
+    </div>
+  </div>
+
+  <div id="proceduralPanel">
+  <div class="group">
+    <span class="glabel">Generator</span>
+    <select id="gen">
+      <option value="plasma">Plasma</option>
+      <option value="hue_cycle">Hue cycle</option>
+      <option value="pulse_ring">Pulse ring</option>
+      <option value="spin_blades">Spin blades</option>
+      <option value="noise_flow">Noise flow</option>
+    </select>
+
+    <div class="params show" data-gen="plasma">
+      <div class="ctrl"><div class="row"><label>Color scale</label><span class="val" id="scaleV">3.0</span></div>
+        <input type="range" id="scale" min="1" max="8" step="0.1" value="3"></div>
+    </div>
+
+    <div class="params" data-gen="hue_cycle">
+      <div class="ctrl"><div class="row"><label>Saturation</label><span class="val" id="satV">1.00</span></div>
+        <input type="range" id="sat" min="0" max="1" step="0.01" value="1"></div>
+    </div>
+
+    <div class="params" data-gen="pulse_ring">
+      <div class="ctrl"><label>Ring color</label><input type="color" id="ringColor" value="#ff3380"></div>
+    </div>
+
+    <div class="params" data-gen="spin_blades">
+      <div class="ctrl"><div class="row"><label>Blades</label><span class="val" id="bladesV">5</span></div>
+        <input type="range" id="blades" min="2" max="12" step="1" value="5"></div>
+      <div class="ctrl"><label>Blade color</label><input type="color" id="bladeColor" value="#46e0d0"></div>
+    </div>
+
+    <div class="params" data-gen="noise_flow">
+      <div class="ctrl"><div class="row"><label>Octaves</label><span class="val" id="octavesV">4</span></div>
+        <input type="range" id="octaves" min="1" max="6" step="1" value="4"></div>
+      <div class="ctrl"><div class="row"><label>Seed</label><span class="val" id="seedV">7</span></div>
+        <input type="range" id="seed" min="0" max="99" step="1" value="7"></div>
+    </div>
+  </div>
+  </div><!-- /proceduralPanel -->
+
+  <div id="collagePanel" style="display:none">
+    <div class="group">
+      <span class="glabel">Images</span>
+      <div id="drop" class="drop">Drop PNGs here<br><span>or click to choose</span></div>
+      <input type="file" id="fileInput" accept="image/*" multiple hidden>
+      <div class="hint">Each image becomes one frame, contain-fit and centered. Drag thumbnails to reorder.</div>
+    </div>
+    <div class="group">
+      <span class="glabel">Frames <span id="frameCount" class="val" style="font-weight:400">0</span></span>
+      <div id="filmstrip" class="filmstrip"></div>
+    </div>
+    <div class="group">
+      <span class="glabel">Processing</span>
+      <div class="ctrl"><div class="row"><label>Blur</label><span class="val" id="blurV">0.0</span></div>
+        <input type="range" id="blur" min="0" max="8" step="0.5" value="0"></div>
+    </div>
+  </div>
+
+  <div id="functionPanel" style="display:none">
+    <div class="group">
+      <span class="glabel">Expression — intensity from x, y, t</span>
+      <textarea id="expr" class="expr" spellcheck="false">sin(length(x,y)*10 - t*TAU)*0.5+0.5</textarea>
+      <div id="exprErr" class="exprErr"></div>
+      <div class="hint">
+        <strong>x, y</strong> ∈ [-1,1] centered · <strong>t</strong> ∈ [0,1) loops.<br>
+        Funcs: sin cos tan atan2 abs floor fract sqrt pow exp min max clamp mix step smoothstep length · noise2d(x,y) fbm(x,y) worley(x,y) · PI TAU
+      </div>
+      <select id="preset">
+        <option value="">— presets —</option>
+        <option value="sin(length(x,y)*10 - t*TAU)*0.5+0.5">Rings</option>
+        <option value="fbm(x*3 + t, y*3)">FBM flow</option>
+        <option value="1 - worley(x*4 + sin(t*TAU)*0.3, y*4)">Worley cells</option>
+        <option value="sin(atan2(y,x)*5 + length(x,y)*8 - t*TAU)*0.5+0.5">Swirl</option>
+        <option value="fract(length(x,y)*6 - t)">Pulse bands</option>
+        <option value="smoothstep(0.3,0.7, fbm(x*2+cos(t*TAU), y*2+sin(t*TAU)))">Clouds</option>
+      </select>
+    </div>
+    <div class="group">
+      <span class="glabel">Color ramp</span>
+      <select id="ramp">
+        <option value="grayscale">Grayscale</option>
+        <option value="fire">Fire</option>
+        <option value="ice">Ice</option>
+        <option value="rainbow">Rainbow</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="particlesPanel" style="display:none">
+    <div class="group">
+      <span class="glabel">Emission</span>
+      <select id="pEmit">
+        <option value="burst">Burst (radial)</option>
+        <option value="stream">Stream (directional)</option>
+        <option value="rise">Rise (upward)</option>
+      </select>
+      <div class="ctrl"><div class="row"><label>Count</label><span class="val" id="pCountV">150</span></div>
+        <input type="range" id="pCount" min="10" max="600" step="10" value="150"></div>
+      <div class="ctrl"><div class="row"><label>Velocity</label><span class="val" id="pVelV">1.2</span></div>
+        <input type="range" id="pVel" min="0.1" max="3" step="0.1" value="1.2"></div>
+      <div class="ctrl"><div class="row"><label>Drag</label><span class="val" id="pDragV">0.50</span></div>
+        <input type="range" id="pDrag" min="0" max="2" step="0.05" value="0.5"></div>
+      <div class="ctrl"><div class="row"><label>Spread</label><span class="val" id="pSpreadV">1.00</span></div>
+        <input type="range" id="pSpread" min="0" max="1" step="0.05" value="1"></div>
+      <div class="ctrl"><div class="row"><label>Jitter / random</label><span class="val" id="pJitterV">0.40</span></div>
+        <input type="range" id="pJitter" min="0" max="1" step="0.05" value="0.4"></div>
+    </div>
+    <div class="group">
+      <span class="glabel">Particle look</span>
+      <div class="ctrl"><div class="row"><label>Dot size</label><span class="val" id="pSizeV">0.06</span></div>
+        <input type="range" id="pSize" min="0.01" max="0.25" step="0.01" value="0.06"></div>
+      <div class="ctrl"><label>Color</label><input type="color" id="pColor" value="#ffaa3c"></div>
+      <div class="ctrl"><div class="row"><label>Seed</label><span class="val" id="pSeedV">7</span></div>
+        <input type="range" id="pSeed" min="0" max="99" step="1" value="7"></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <span class="glabel">Dimensions</span>
+    <div class="ctrl"><div class="row"><label>Size</label><span class="val" id="sizeV">128 px</span></div>
+      <input type="range" id="size" min="32" max="256" step="16" value="128"></div>
+    <div class="ctrl"><div class="row"><label>Frames</label><span class="val" id="framesV">24</span></div>
+      <input type="range" id="frames" min="2" max="48" step="1" value="24"></div>
+    <div class="ctrl"><div class="row"><label>FPS</label><span class="val" id="fpsV">25</span></div>
+      <input type="range" id="fps" min="1" max="60" step="1" value="25"></div>
+  </div>
+
+  <div class="group">
+    <span class="glabel">Edge mask</span>
+    <select id="maskShape">
+      <option value="circle">Circle</option>
+      <option value="box">Box</option>
+      <option value="diamond">Diamond</option>
+      <option value="vgrad">Vertical gradient</option>
+      <option value="hgrad">Horizontal gradient</option>
+    </select>
+    <div class="ctrl"><div class="row"><label>Falloff</label><span class="val" id="maskV">0.30</span></div>
+      <input type="range" id="mask" min="0" max="1" step="0.01" value="0.3"></div>
+    <div class="hint">0 = no mask. Higher fades edges to transparent in the chosen shape.</div>
+  </div>
+
+  <div class="group">
+    <span class="glabel">Effects</span>
+
+    <div class="fx">
+      <label class="fxhead"><input type="checkbox" id="rotOn"> Rotate</label>
+      <div class="fxbody" id="rotBody">
+        <div class="ctrl"><div class="row"><label>Angle</label><span class="val" id="rotAngV">0°</span></div>
+          <input type="range" id="rotAng" min="-180" max="180" step="1" value="0"></div>
+        <div class="ctrl"><div class="row"><label>Spin (turns/loop)</label><span class="val" id="rotSpinV">0</span></div>
+          <input type="range" id="rotSpin" min="-3" max="3" step="1" value="0"></div>
+      </div>
+    </div>
+
+    <div class="fx">
+      <label class="fxhead"><input type="checkbox" id="disOn"> Distort</label>
+      <div class="fxbody" id="disBody">
+        <div class="ctrl"><div class="row"><label>Amount</label><span class="val" id="disAmtV">5</span></div>
+          <input type="range" id="disAmt" min="0" max="30" step="1" value="5"></div>
+        <div class="ctrl"><div class="row"><label>Frequency</label><span class="val" id="disFreqV">3</span></div>
+          <input type="range" id="disFreq" min="1" max="10" step="1" value="3"></div>
+      </div>
+    </div>
+
+    <div class="fx">
+      <label class="fxhead"><input type="checkbox" id="moshOn"> Datamosh</label>
+      <div class="fxbody" id="moshBody">
+        <div class="ctrl"><div class="row"><label>Strength</label><span class="val" id="moshStrV">0.60</span></div>
+          <input type="range" id="moshStr" min="0" max="1" step="0.05" value="0.6"></div>
+        <div class="ctrl"><div class="row"><label>Shift (px)</label><span class="val" id="moshShiftV">4</span></div>
+          <input type="range" id="moshShift" min="0" max="20" step="1" value="4"></div>
+      </div>
+    </div>
+
+    <div class="fx">
+      <label class="fxhead"><input type="checkbox" id="ovOn"> Overlay image</label>
+      <div class="fxbody" id="ovBody">
+        <div id="ovDrop" class="drop">Drop an image<br><span>or click to choose</span></div>
+        <input type="file" id="ovFile" accept="image/*" hidden>
+        <div class="ctrl"><label>Blend mode</label>
+          <select id="ovMode">
+            <option value="normal">Normal</option>
+            <option value="add">Add</option>
+            <option value="multiply">Multiply</option>
+            <option value="screen">Screen</option>
+          </select></div>
+        <div class="ctrl"><div class="row"><label>Opacity</label><span class="val" id="ovOpV">1.00</span></div>
+          <input type="range" id="ovOp" min="0" max="1" step="0.05" value="1"></div>
+        <div class="hint" id="ovStatus">No overlay loaded.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="group">
+    <span class="glabel">Preview background</span>
+    <div class="seg" id="bgSeg">
+      <button data-bg="checker" class="on">Checker</button>
+      <button data-bg="black">Black</button>
+    </div>
+  </div>
+
+  <div class="export">
+    <div class="ctrl"><div class="row"><label>Export scale</label><span class="val" id="upInfo">256 px</span></div>
+      <select id="upScale">
+        <option value="1">1× — 256 px</option>
+        <option value="2">2× — 512 px</option>
+        <option value="4">4× — 1024 px</option>
+        <option value="8">8× — 2048 px</option>
+      </select></div>
+    <div class="seg" id="upModeSeg">
+      <button data-up="bilinear" class="on">Smooth</button>
+      <button data-up="nearest">Blocky</button>
+    </div>
+    <div class="btns">
+      <button class="btn-anb" id="expAnb">Export .anb</button>
+      <button class="btn-dwa" id="expDwa">Export .dwa</button>
+    </div>
+    <div class="note" id="expNote">.anb = RGBA brush · .dwa = RGB animation</div>
+  </div>
+</aside>
+
+<main class="stage">
+  <div class="canvas-wrap" id="cwrap"><canvas id="preview" width="128" height="128"></canvas></div>
+  <div class="transport">
+    <button class="play" id="play">►</button>
+    <input type="range" id="scrub" min="0" max="23" step="1" value="0">
+    <span class="frame-read" id="fread">0 / 24</span>
+  </div>
+  <p class="hint" style="max-width:520px">
+    Frames loop seamlessly. Export, then in Howler use <strong>Load brush</strong> and pick the file.
+  </p>
+</main>
+
+<script>
+const TAU = Math.PI * 2;
+const q = x => { let v = x*255 + 0.5; return v<0?0:(v>255?255:v|0); };
+
+// ---------- FUNCTION EVALUATOR: noise library + safe compile ----------
+const PI = Math.PI;
+function _hash2(x,y){ let h=Math.sin(x*127.1+y*311.7)*43758.5453; return h-Math.floor(h); }
+function noise2d(x,y){
+  const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
+  const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+  const a=_hash2(xi,yi),b=_hash2(xi+1,yi),c=_hash2(xi,yi+1),d=_hash2(xi+1,yi+1);
+  return a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v;
+}
+function fbm(x,y){ let v=0,amp=0.5,f=1; for(let i=0;i<5;i++){v+=amp*noise2d(x*f,y*f);f*=2;amp*=0.5;} return v; }
+function worley(x,y){
+  const xi=Math.floor(x),yi=Math.floor(y); let md=1e9;
+  for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){
+    const gx=xi+ox,gy=yi+oy,px=gx+_hash2(gx,gy),py=gy+_hash2(gy,gx);
+    const dx=px-x,dy=py-y,d=dx*dx+dy*dy; if(d<md)md=d;
+  } return Math.sqrt(md);
+}
+const EXPR_SCOPE = { sin:Math.sin,cos:Math.cos,tan:Math.tan,abs:Math.abs,floor:Math.floor,
+  ceil:Math.ceil,round:Math.round,sqrt:Math.sqrt,pow:Math.pow,exp:Math.exp,log:Math.log,
+  atan:Math.atan,atan2:Math.atan2,min:Math.min,max:Math.max,sign:Math.sign,
+  fract:x=>x-Math.floor(x), clamp:(v,a,b)=>Math.min(b,Math.max(a,v)),
+  mix:(a,b,t)=>a+(b-a)*t, step:(e,x)=>x<e?0:1,
+  smoothstep:(e0,e1,x)=>{let t=Math.min(1,Math.max(0,(x-e0)/(e1-e0)));return t*t*(3-2*t);},
+  length:(x,y)=>Math.sqrt(x*x+y*y), noise2d, fbm, worley, PI, TAU };
+function compileExpr(expr){
+  const names=Object.keys(EXPR_SCOPE);
+  const fn=new Function(...names,'x','y','t',`"use strict"; return (${expr});`);
+  const vals=names.map(n=>EXPR_SCOPE[n]);
+  return (x,y,t)=>fn(...vals,x,y,t);
+}
+const RAMPS = {
+  grayscale: v=>[v,v,v],
+  fire: v=>[Math.min(1,v*1.5), Math.max(0,v*1.2-0.3), Math.max(0,v*2-1.4)],
+  ice:  v=>[Math.max(0,v*1.3-0.4), Math.max(0,v*1.1-0.1), Math.min(1,v*1.4)],
+  rainbow: v=>{ const k=n=>{let p=Math.abs(((v*6+n)%6)-3)-1;return Math.min(1,Math.max(0,p));}; return [k(0),k(4),k(2)]; },
+};
+function buildFunction(withAlpha){
+  const W=S.size,H=S.size,n=S.frames,c=withAlpha?4:3;
+  const data=new Uint8Array(n*W*H*c);
+  let f;
+  try { f=compileExpr(S.expr); f(0,0,0); $('exprErr').textContent=''; }
+  catch(e){ $('exprErr').textContent=String(e.message||e); return null; }
+  const ramp=RAMPS[S.ramp]||RAMPS.grayscale;
+  for(let fr=0;fr<n;fr++){ const t=fr/n;
+    for(let y=0;y<H;y++){ const ny=(y/(H-1))*2-1;
+      for(let x=0;x<W;x++){ const nx=(x/(W-1))*2-1;
+        let v=f(nx,ny,t); if(!isFinite(v))v=0; v=v<0?0:(v>1?1:v);
+        const col=ramp(v), o=((fr*H+y)*W+x)*c;
+        data[o]=q(col[0]);data[o+1]=q(col[1]);data[o+2]=q(col[2]);
+        if(withAlpha) data[o+3]=q(v*maskFactor(nx,ny,S.mask));
+      }}}
+  return {data,c};
+}
+
+// ---------- PARTICLES mode (simulated, baked to seamless loop) ----------
+function _mulberry32(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0;
+  let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t;
+  return ((t^t>>>14)>>>0)/4294967296; }; }
+function buildParticles(withAlpha){
+  const W=S.size,H=S.size,n=S.frames,c=withAlpha?4:3;
+  const P=S.P, col=hex2rgb(P.pColor).map(v=>v*255);
+  const rnd=_mulberry32((P.pSeed*2654435761>>>0)||1);
+  const cx=W/2, cy=H/2;
+  const parts=[];
+  for(let i=0;i<P.pCount;i++){
+    let baseAng;
+    if(P.pEmit==='burst') baseAng=rnd()*TAU;
+    else if(P.pEmit==='rise') baseAng=-Math.PI/2 + (rnd()-0.5)*P.pSpread*TAU*0.5;
+    else baseAng=0 + (rnd()-0.5)*P.pSpread*TAU*0.5;
+    const spd=P.pVel*(1+(rnd()-0.5)*2*P.pJitter);
+    parts.push({ ang:baseAng+(rnd()-0.5)*P.pJitter*0.5, spd:Math.max(0,spd),
+                 phase:rnd(), sz:P.pSize*(1+(rnd()-0.5)*P.pJitter) });
+  }
+  const data=new Uint8Array(n*W*H*c);
+  const k=P.pDrag*4+0.001;
+  for(let f=0;f<n;f++){ const t=f/n, fb=f*W*H*c;
+    for(const p of parts){
+      let life=(t+p.phase)%1;
+      const dist=(p.spd/k)*(1-Math.exp(-k*life))*(W*0.5);
+      const px=cx+Math.cos(p.ang)*dist, py=cy+Math.sin(p.ang)*dist;
+      const a=Math.min(1,life*6)*Math.max(0,1-life);
+      const r=p.sz*W*0.5*(0.5+0.5*(1-life));
+      if(r<0.5) continue;
+      const x0=Math.max(0,Math.floor(px-r)),x1=Math.min(W-1,Math.ceil(px+r));
+      const y0=Math.max(0,Math.floor(py-r)),y1=Math.min(H-1,Math.ceil(py+r));
+      for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+        const dx=x-px,dy=y-py,d=Math.sqrt(dx*dx+dy*dy); if(d>r)continue;
+        const fall=1-d/r, av=a*fall*fall, o=fb+(y*W+x)*c;
+        data[o]  =Math.min(255,data[o]  +col[0]*av);
+        data[o+1]=Math.min(255,data[o+1]+col[1]*av);
+        data[o+2]=Math.min(255,data[o+2]+col[2]*av);
+        if(withAlpha) data[o+3]=Math.min(255,data[o+3]+255*av);
+      }
+    }
+  }
+  return {data,c};
+}
+function _sampleBilinear(buf, base, W, H, c, fx, fy) {
+  fx = Math.min(W-1, Math.max(0, fx)); fy = Math.min(H-1, Math.max(0, fy));
+  const x0=Math.floor(fx), y0=Math.floor(fy), x1=Math.min(W-1,x0+1), y1=Math.min(H-1,y0+1);
+  const tx=fx-x0, ty=fy-y0, o=(x,y)=>base+(y*W+x)*c, out=[0,0,0,0];
+  for (let k=0;k<c;k++){
+    const a=buf[o(x0,y0)+k]*(1-tx)+buf[o(x1,y0)+k]*tx;
+    const b=buf[o(x0,y1)+k]*(1-tx)+buf[o(x1,y1)+k]*tx;
+    out[k]=a*(1-ty)+b*ty;
+  }
+  return out;
+}
+function fxRotate(frames,n,W,H,c,angleDeg,spinTurns){
+  const cx=(W-1)/2, cy=(H-1)/2, out=new Uint8Array(frames.length);
+  for(let fr=0;fr<n;fr++){
+    const ang=(angleDeg*Math.PI/180)+(spinTurns*TAU*fr/n), ca=Math.cos(-ang), sa=Math.sin(-ang);
+    const fb=fr*H*W*c;
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      const dx=x-cx,dy=y-cy, sx=cx+dx*ca-dy*sa, sy=cy+dx*sa+dy*ca;
+      const s=_sampleBilinear(frames,fb,W,H,c,sx,sy), o=fb+(y*W+x)*c;
+      for(let k=0;k<c;k++) out[o+k]=s[k]|0;
+    }
+  }
+  return out;
+}
+function fxDistort(frames,n,W,H,c,amount,freq){
+  const out=new Uint8Array(frames.length);
+  for(let fr=0;fr<n;fr++){ const ph=TAU*fr/n, fb=fr*H*W*c;
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      const sx=x+Math.sin((y/H)*TAU*freq+ph)*amount, sy=y+Math.cos((x/W)*TAU*freq+ph)*amount;
+      const s=_sampleBilinear(frames,fb,W,H,c,sx,sy), o=fb+(y*W+x)*c;
+      for(let k=0;k<c;k++) out[o+k]=s[k]|0;
+    }
+  }
+  return out;
+}
+function fxMosh(frames,n,W,H,c,strength,shift){
+  const out=new Uint8Array(frames);
+  for(let fr=0;fr<n;fr++){ const prev=(fr-1+n)%n, fb=fr*H*W*c, pb=prev*H*W*c;
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      const s=_sampleBilinear(frames,pb,W,H,c,x-shift,y), o=fb+(y*W+x)*c;
+      for(let k=0;k<c;k++) out[o+k]=(frames[o+k]*(1-strength)+s[k]*strength)|0;
+    }
+  }
+  return out;
+}
+function applyEffects(arr, n, W, H, c) {
+  let d = arr;
+  if (S.fx.rot)  d = fxRotate(d, n, W, H, c, S.fx.rotAng, S.fx.rotSpin);
+  if (S.fx.dis)  d = fxDistort(d, n, W, H, c, S.fx.disAmt, S.fx.disFreq);
+  if (S.fx.mosh) d = fxMosh(d, n, W, H, c, S.fx.moshStr, S.fx.moshShift);
+  if (S.fx.ov && S.ovData)  d = fxOverlay(d, n, W, H, c, S.ovData, S.fx.ovMode, S.fx.ovOp);
+  return d;
+}
+// ---------- EXPORT-TIME UPSCALER (phase 2c) ----------
+function upscale(frames, n, W, H, c, scale, mode) {
+  if (scale <= 1) return { data: frames, W, H };
+  const NW = W*scale, NH = H*scale, out = new Uint8Array(n*NW*NH*c);
+  for (let f=0; f<n; f++) {
+    const fb=f*W*H*c, ob=f*NW*NH*c;
+    for (let y=0; y<NH; y++) {
+      const sy=(y+0.5)/scale-0.5;
+      for (let x=0; x<NW; x++) {
+        const sx=(x+0.5)/scale-0.5, o=ob+(y*NW+x)*c;
+        if (mode==='nearest') {
+          const ix=Math.min(W-1,Math.max(0,Math.round(sx))), iy=Math.min(H-1,Math.max(0,Math.round(sy)));
+          const si=fb+(iy*W+ix)*c;
+          for (let k=0;k<c;k++) out[o+k]=frames[si+k];
+        } else {
+          const x0=Math.min(W-1,Math.max(0,Math.floor(sx))), y0=Math.min(H-1,Math.max(0,Math.floor(sy)));
+          const x1=Math.min(W-1,x0+1), y1=Math.min(H-1,y0+1);
+          const tx=Math.min(1,Math.max(0,sx-x0)), ty=Math.min(1,Math.max(0,sy-y0));
+          for (let k=0;k<c;k++){
+            const a=frames[fb+(y0*W+x0)*c+k]*(1-tx)+frames[fb+(y0*W+x1)*c+k]*tx;
+            const b=frames[fb+(y1*W+x0)*c+k]*(1-tx)+frames[fb+(y1*W+x1)*c+k]*tx;
+            out[o+k]=(a*(1-ty)+b*ty)|0;
+          }
+        }
+      }
+    }
+  }
+  return { data: out, W: NW, H: NH };
+}
+// Overlay a static RGBA source (W*H*4) onto every frame with blend mode + opacity.
+function fxOverlay(frames, n, W, H, c, ov, mode, opacity) {
+  const out = new Uint8Array(frames);
+  for (let f=0; f<n; f++) for (let i=0; i<W*H; i++) {
+    const o=(f*W*H+i)*c, so=i*4;
+    const sr=ov[so], sg=ov[so+1], sb=ov[so+2], sa=ov[so+3];
+    const a=(sa/255)*opacity, dr=out[o], dg=out[o+1], db=out[o+2];
+    let r,g,b;
+    switch(mode){
+      case 'add':      r=dr+sr; g=dg+sg; b=db+sb; break;
+      case 'multiply': r=dr*sr/255; g=dg*sg/255; b=db*sb/255; break;
+      case 'screen':   r=255-(255-dr)*(255-sr)/255; g=255-(255-dg)*(255-sg)/255; b=255-(255-db)*(255-sb)/255; break;
+      default:         r=sr; g=sg; b=sb;
+    }
+    out[o]  =Math.min(255, dr*(1-a)+r*a)|0;
+    out[o+1]=Math.min(255, dg*(1-a)+g*a)|0;
+    out[o+2]=Math.min(255, db*(1-a)+b*a)|0;
+    if (c===4) out[o+3]=Math.min(255, Math.max(out[o+3], sa*opacity))|0;
+  }
+  return out;
+}
+
+// ---------- ENCODER (byte-verified identical to Python reference) ----------
+const DWA_COOKIE = 826365764, ANBR_COOKIE = 0x52424E41;
+function encode(framesU8, n, h, w, c, opts) {
+  opts = opts || {};
+  const fps = opts.fps ?? 12, dir = opts.direction ?? 1,
+        endb = opts.end_behavior ?? 0, step = opts.step ?? 1;
+  const hasAlpha = (c === 4), headerSize = hasAlpha ? 36 : 20;
+  const stride = w + 1, padrows = h + 1, planeBytes = stride * padrows;
+  const out = new Uint8Array(headerSize + planeBytes * n * c);
+  const dv = new DataView(out.buffer);
+  if (!hasAlpha) {
+    dv.setInt32(0, DWA_COOKIE, true); dv.setInt32(4, fps, true);
+    dv.setInt32(8, w, true); dv.setInt32(12, h, true); dv.setInt32(16, n, true);
+  } else {
+    dv.setInt32(0, ANBR_COOKIE, true); dv.setInt32(4, w, true);
+    dv.setInt32(8, h, true); dv.setInt32(12, n - 1, true);
+    dv.setInt32(16, dir, true); dv.setInt32(20, endb, true);
+    dv.setInt32(24, step, true); dv.setInt32(28, 0, true); dv.setInt32(32, 0, true);
+  }
+  const idx = (fr, y, x, ch) => ((fr * h + y) * w + x) * c + ch;
+  for (let ch = 0; ch < c; ch++) {
+    const planeBase = headerSize + planeBytes * n * ch;
+    for (let fr = 0; fr < n; fr++) {
+      const fbase = planeBase + fr * planeBytes;
+      if (hasAlpha) {
+        for (let y = 0; y < h; y++) {
+          const ro = fbase + y * stride;
+          for (let x = 0; x < w; x++) out[ro + x] = framesU8[idx(fr, y, x, ch)];
+        }
+      } else {
+        for (let y = 0; y < h; y++) {
+          const ro = fbase + y * stride;
+          for (let x = 0; x < w; x++) out[ro + x] = framesU8[idx(fr, y, x, ch)];
+          out[ro + w] = framesU8[idx(fr, y, w - 1, ch)];
+        }
+        const prow = fbase + h * stride;
+        for (let x = 0; x < w; x++) out[prow + x] = framesU8[idx(fr, h - 1, x, ch)];
+        out[prow + w] = framesU8[idx(fr, h - 1, w - 1, ch)];
+      }
+    }
+  }
+  return out;
+}
+
+// ---------- shared radial mask ----------
+function maskFactor(nx, ny, maskAmt) {
+  if (maskAmt <= 0) return 1;
+  const edge = 1 - maskAmt;
+  let d;
+  switch (S.maskShape) {
+    case 'box':     d = Math.max(Math.abs(nx), Math.abs(ny)); break;
+    case 'diamond': d = Math.abs(nx) + Math.abs(ny); break;
+    case 'vgrad':   d = (ny + 1) / 2; break;
+    case 'hgrad':   d = (nx + 1) / 2; break;
+    default:        d = Math.sqrt(nx*nx + ny*ny); // circle
+  }
+  let a = d <= edge ? 1 : Math.max(0, 1 - (d - edge) / (1 - edge + 1e-6));
+  return a*a*(3 - 2*a);
+}
+function hsv2rgb(h,s,v){
+  h=(((h%1)+1)%1)*6; const i=Math.floor(h),f=h-i;
+  const p=v*(1-s),qq=v*(1-s*f),t=v*(1-s*(1-f));
+  switch(i%6){case 0:return[v,t,p];case 1:return[qq,v,p];case 2:return[p,v,t];
+    case 3:return[p,qq,v];case 4:return[t,p,v];default:return[v,p,qq];}
+}
+function hex2rgb(hex){
+  const n=parseInt(hex.slice(1),16);
+  return [((n>>16)&255)/255, ((n>>8)&255)/255, (n&255)/255];
+}
+
+// ---------- GENERATORS (all verified vs Python within ±1/255) ----------
+function genPlasma(n,h,w,P,maskAmt,a){
+  const c=a?4:3,d=new Uint8Array(n*h*w*c),sc=P.scale;
+  for(let f=0;f<n;f++){const p=TAU*f/n;
+    for(let y=0;y<h;y++){const ny=(y/(h-1))*2-1;
+      for(let x=0;x<w;x++){const nx=(x/(w-1))*2-1;
+        let v=Math.sin(nx*sc+p)+Math.sin(ny*sc+p*0.7)+Math.sin((nx+ny)*sc*0.5+p)+Math.sin(Math.sqrt(nx*nx+ny*ny)*sc+p);
+        v=(v+4)/8;
+        const r=0.5+0.5*Math.sin(TAU*v),g=0.5+0.5*Math.sin(TAU*v+TAU/3),b=0.5+0.5*Math.sin(TAU*v+2*TAU/3);
+        const o=((f*h+y)*w+x)*c; d[o]=q(r);d[o+1]=q(g);d[o+2]=q(b);
+        if(a)d[o+3]=q(maskFactor(nx,ny,maskAmt));
+      }}}
+  return{data:d,c};
+}
+function genHueCycle(n,h,w,P,maskAmt,a){
+  const c=a?4:3,d=new Uint8Array(n*h*w*c),sat=P.sat;
+  for(let f=0;f<n;f++)for(let y=0;y<h;y++){const ny=(y/(h-1))*2-1;
+    for(let x=0;x<w;x++){const nx=(x/(w-1))*2-1;
+      let r=Math.min(1,Math.sqrt(nx*nx+ny*ny));
+      const[R,G,B]=hsv2rgb(((r+f/n)%1+1)%1,sat,1-0.3*r);
+      let al=a?Math.max(0,Math.min(1,1.2-r))*maskFactor(nx,ny,maskAmt):1;
+      const o=((f*h+y)*w+x)*c; d[o]=q(R);d[o+1]=q(G);d[o+2]=q(B);
+      if(a)d[o+3]=q(al);
+    }}
+  return{data:d,c};
+}
+function genPulseRing(n,h,w,P,maskAmt,a){
+  const c=a?4:3,d=new Uint8Array(n*h*w*c),col=hex2rgb(P.color);
+  for(let f=0;f<n;f++){const rad=(f/n)*1.3;
+    for(let y=0;y<h;y++){const ny=(y/(h-1))*2-1;
+      for(let x=0;x<w;x++){const nx=(x/(w-1))*2-1;
+        const r=Math.sqrt(nx*nx+ny*ny),ring=Math.exp(-((r-rad)*(r-rad))/0.01);
+        const o=((f*h+y)*w+x)*c;
+        d[o]=q(col[0]*ring);d[o+1]=q(col[1]*ring);d[o+2]=q(col[2]*ring);
+        if(a)d[o+3]=q(ring*maskFactor(nx,ny,maskAmt));
+      }}}
+  return{data:d,c};
+}
+function genSpinBlades(n,h,w,P,maskAmt,a){
+  const c=a?4:3,d=new Uint8Array(n*h*w*c),col=hex2rgb(P.color),bl=P.blades;
+  for(let f=0;f<n;f++){const ph=TAU*f/n;
+    for(let y=0;y<h;y++){const ny=(y/(h-1))*2-1;
+      for(let x=0;x<w;x++){const nx=(x/(w-1))*2-1;
+        const r=Math.sqrt(nx*nx+ny*ny),th=Math.atan2(ny,nx),disk=r<1?1:0;
+        const v=(0.5+0.5*Math.sin(th*bl+ph))*disk;
+        const o=((f*h+y)*w+x)*c;
+        d[o]=q(col[0]*v);d[o+1]=q(col[1]*v);d[o+2]=q(col[2]*v);
+        if(a)d[o+3]=q(v*maskFactor(nx,ny,maskAmt));
+      }}}
+  return{data:d,c};
+}
+// Small seeded RNG (mulberry32) for reproducible noise.
+function mulberry32(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0;
+  let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t;
+  return ((t^t>>>14)>>>0)/4294967296; }; }
+function genNoiseFlow(n,h,w,P,maskAmt,a){
+  const c=a?4:3,d=new Uint8Array(n*h*w*c);
+  const octaves=P.octaves, rnd=mulberry32(P.seed*2654435761>>>0);
+  const field=new Float32Array(n*h*w);
+  let ampSum=0;
+  for(let o=0;o<octaves;o++){
+    const period=Math.max(4, Math.floor(w/Math.pow(2,o)));
+    const amp=Math.pow(0.5,o); ampSum+=amp;
+    const gw=Math.floor(w/period)+2, gh=Math.floor(h/period)+2, gz=Math.max(2,period);
+    const grid=new Float32Array(gw*gh*gz);
+    for(let i=0;i<grid.length;i++) grid[i]=rnd();
+    const gidx=(gx,gy,gz_)=>(gy*gw+gx)*gz+gz_;
+    for(let f=0;f<n;f++){
+      const tz=(f/n)*gz, z0=Math.floor(tz)%gz, z1=(z0+1)%gz, fz=tz-Math.floor(tz);
+      for(let y=0;y<h;y++){const gy=Math.floor(y/period);
+        for(let x=0;x<w;x++){const gx=Math.floor(x/period);
+          const s=grid[gidx(gx,gy,z0)]*(1-fz)+grid[gidx(gx,gy,z1)]*fz;
+          field[(f*h+y)*w+x]+=amp*s;
+        }}}
+  }
+  let mn=Infinity,mx=-Infinity;
+  for(let i=0;i<field.length;i++){field[i]/=ampSum; if(field[i]<mn)mn=field[i]; if(field[i]>mx)mx=field[i];}
+  const rng=(mx-mn)||1e-6;
+  for(let f=0;f<n;f++)for(let y=0;y<h;y++){const ny=(y/(h-1))*2-1;
+    for(let x=0;x<w;x++){const nx=(x/(w-1))*2-1;
+      const v=(field[(f*h+y)*w+x]-mn)/rng;
+      const o=((f*h+y)*w+x)*c; d[o]=q(v);d[o+1]=q(v);d[o+2]=q(v);
+      if(a)d[o+3]=q(v*maskFactor(nx,ny,maskAmt));
+    }}
+  return{data:d,c};
+}
+
+const GEN = { plasma:genPlasma, hue_cycle:genHueCycle, pulse_ring:genPulseRing,
+              spin_blades:genSpinBlades, noise_flow:genNoiseFlow };
+
+// ---------- STATE ----------
+const S = { mode:'procedural', gen:'plasma', size:128, frames:24, fps:25, mask:0.3, bg:'checker',
+            cur:0, playing:false, cache:null, blur:0,
+            images:[], expr:'sin(length(x,y)*10 - t*TAU)*0.5+0.5', ramp:'grayscale',
+            fx:{ rot:false, rotAng:0, rotSpin:0, dis:false, disAmt:5, disFreq:3,
+                 mosh:false, moshStr:0.6, moshShift:4,
+                 ov:false, ovMode:'normal', ovOp:1 },
+            maskShape:'circle', ovData:null, upScale:1, upMode:'bilinear',
+            P:{ scale:3, sat:1, ringColor:'#ff3380', blades:5, bladeColor:'#46e0d0',
+                octaves:4, seed:7,
+                pEmit:'burst', pCount:150, pVel:1.2, pDrag:0.5, pSpread:1, pJitter:0.4,
+                pSize:0.06, pColor:'#ffaa3c', pSeed:7 } };
+const $ = id => document.getElementById(id);
+
+// ---------- COLLAGE: image -> contain-fit RGBA frame ----------
+const fitCanvas = document.createElement('canvas');
+function imageToFrameRGBA(img, W, H) {
+  fitCanvas.width = W; fitCanvas.height = H;
+  const ctx = fitCanvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const scale = Math.min(W/iw, H/ih);
+  const nw = Math.max(1, Math.round(iw*scale)), nh = Math.max(1, Math.round(ih*scale));
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, (W-nw)>>1, (H-nh)>>1, nw, nh);
+  return ctx.getImageData(0, 0, W, H).data; // Uint8ClampedArray RGBA
+}
+// separable box-approx Gaussian on one frame's RGBA (in place), radius r px
+function blurFrame(buf, W, H, r) {
+  if (r <= 0) return buf;
+  const passes = 3, rad = Math.max(1, Math.round(r));
+  let src = new Float32Array(buf), dst = new Float32Array(buf.length);
+  const blur1D = (s, d, horiz) => {
+    const win = rad*2+1;
+    for (let y=0; y<H; y++) for (let x=0; x<W; x++) {
+      let R=0,G=0,B=0,A=0;
+      for (let k=-rad; k<=rad; k++) {
+        let xx=x, yy=y;
+        if (horiz) xx=Math.min(W-1,Math.max(0,x+k)); else yy=Math.min(H-1,Math.max(0,y+k));
+        const o=(yy*W+xx)*4; R+=s[o];G+=s[o+1];B+=s[o+2];A+=s[o+3];
+      }
+      const o=(y*W+x)*4; d[o]=R/win;d[o+1]=G/win;d[o+2]=B/win;d[o+3]=A/win;
+    }
+  };
+  for (let p=0; p<passes; p++){ blur1D(src,dst,true); [src,dst]=[dst,src]; blur1D(src,dst,false); [src,dst]=[dst,src]; }
+  for (let i=0;i<buf.length;i++) buf[i]=src[i]|0;
+  return buf;
+}
+// Build the full collage frame array (n,H,W,4) as flat Uint8Array, applying mask+blur
+function buildCollage(withAlpha) {
+  const W = S.size, H = S.size, n = Math.max(1, S.images.length);
+  const c = withAlpha ? 4 : 3;
+  const data = new Uint8Array(n*H*W*c);
+  for (let f = 0; f < n; f++) {
+    const src = S.images.length ? imageToFrameRGBA(S.images[f].img, W, H) : new Uint8ClampedArray(W*H*4);
+    const rgba = new Uint8ClampedArray(src);   // copy so blur doesn't touch source
+    blurFrame(rgba, W, H, S.blur);
+    for (let y=0;y<H;y++){ const ny=(y/(H-1))*2-1;
+      for (let x=0;x<W;x++){ const nx=(x/(W-1))*2-1;
+        const o=(y*W+x)*4, dst=((f*H+y)*W+x)*c;
+        data[dst]=rgba[o]; data[dst+1]=rgba[o+1]; data[dst+2]=rgba[o+2];
+        if (withAlpha) data[dst+3]=q((rgba[o+3]/255)*maskFactor(nx,ny,S.mask));
+      }}
+  }
+  return { data, c, n };
+}
+
+function params() {
+  switch (S.gen) {
+    case 'plasma': return { scale:S.P.scale };
+    case 'hue_cycle': return { sat:S.P.sat };
+    case 'pulse_ring': return { color:S.P.ringColor };
+    case 'spin_blades': return { blades:S.P.blades, color:S.P.bladeColor };
+    case 'noise_flow': return { octaves:S.P.octaves, seed:S.P.seed };
+  }
+}
+function build(withAlpha) {
+  if (S.fx.ov && S.ovImg && (!S.ovData || S.ovData.length !== S.size*S.size*4)) rasterizeOverlay();
+  let r;
+  if (S.mode === 'collage') { const cr = buildCollage(withAlpha); r = { data:cr.data, c:cr.c }; }
+  else if (S.mode === 'function') { r = buildFunction(withAlpha); }
+  else if (S.mode === 'particles') { r = buildParticles(withAlpha); }
+  else { r = GEN[S.gen](S.frames, S.size, S.size, params(), S.mask, withAlpha); }
+  if (!r) return null;
+  const anyFx = S.fx.rot || S.fx.dis || S.fx.mosh || (S.fx.ov && S.ovData);
+  if (anyFx) r = { data: applyEffects(r.data, effFrames(), S.size, S.size, r.c), c: r.c };
+  return r;
+}
+function effFrames() {
+  return S.mode === 'collage' ? Math.max(1, S.images.length) : S.frames;
+}
+function rebuild() {
+  if (S.mode === 'collage' && S.images.length === 0) {
+    // nothing to show yet
+    S.cache = null;
+    const cv = $('preview'); cv.width = S.size; cv.height = S.size;
+    cv.getContext('2d').clearRect(0,0,S.size,S.size);
+    $('scrub').max = 0; $('fread').textContent = '0 / 0';
+    return;
+  }
+  const built = build(true);
+  if (!built) { return; }  // function-mode compile error; exprErr already shown
+  S.cache = built.data;
+  const nf = effFrames();
+  const cv = $('preview'); cv.width = S.size; cv.height = S.size;
+  $('scrub').max = Math.max(0, nf - 1);
+  if (S.cur >= nf) S.cur = 0;
+  draw();
+  if (typeof estOutSize === 'function') estOutSize();
+}
+function draw() {
+  if (!S.cache) return;
+  const cv = $('preview'), ctx = cv.getContext('2d');
+  const data = S.cache, h = S.size, w = S.size;
+  const img = ctx.createImageData(w, h), fbase = S.cur * h * w * 4;
+  for (let i = 0; i < h*w; i++) {
+    img.data[i*4]=data[fbase+i*4]; img.data[i*4+1]=data[fbase+i*4+1];
+    img.data[i*4+2]=data[fbase+i*4+2]; img.data[i*4+3]=data[fbase+i*4+3];
+  }
+  ctx.putImageData(img, 0, 0);
+  $('scrub').value = S.cur; $('fread').textContent = `${S.cur} / ${effFrames()}`;
+}
+
+// ---------- playback ----------
+let lastT = 0;
+function loop(t){ if(S.playing){ const nf=effFrames(); if(t-lastT>1000/S.fps){S.cur=(S.cur+1)%nf;draw();lastT=t;} requestAnimationFrame(loop);} }
+$('play').onclick = () => {
+  S.playing=!S.playing; $('play').textContent=S.playing?'❚❚':'►';
+  if(S.playing){lastT=performance.now();requestAnimationFrame(loop);}
+};
+$('scrub').oninput = e => { S.playing=false; $('play').textContent='►'; S.cur=+e.target.value; draw(); };
+
+// ---------- generator switch ----------
+$('gen').onchange = e => {
+  S.gen = e.target.value; S.cur = 0;
+  document.querySelectorAll('.params').forEach(p => p.classList.toggle('show', p.dataset.gen===S.gen));
+  rebuild();
+};
+
+// ---------- control binding ----------
+function bindRange(id, target, fmt, rebuildNeeded) {
+  $(id).oninput = e => {
+    const v = +e.target.value;
+    if (target==='S') S[id]=v; else S.P[id]=v;
+    $(id+'V').textContent = fmt(v);
+    rebuildNeeded ? rebuild() : draw();
+  };
+}
+bindRange('scale','P',v=>v.toFixed(1),true);
+bindRange('sat','P',v=>v.toFixed(2),true);
+bindRange('blades','P',v=>String(v),true);
+bindRange('octaves','P',v=>String(v),true);
+bindRange('seed','P',v=>String(v),true);
+bindRange('size','S',v=>v+' px',true);
+bindRange('frames','S',v=>String(v),true);
+bindRange('fps','S',v=>String(v),false);
+bindRange('mask','S',v=>v.toFixed(2),true);
+$('ringColor').oninput = e => { S.P.ringColor=e.target.value; rebuild(); };
+$('bladeColor').value = '#46e0d0';
+$('bladeColor').oninput = e => { S.P.bladeColor=e.target.value; rebuild(); };
+
+$('bgSeg').onclick = e => {
+  if(!e.target.dataset.bg) return;
+  [...$('bgSeg').children].forEach(b=>b.classList.remove('on'));
+  e.target.classList.add('on'); S.bg=e.target.dataset.bg;
+  $('cwrap').classList.toggle('black', S.bg==='black');
+};
+
+// ---------- MODE SWITCH ----------
+$('modeSeg').onclick = e => {
+  if (!e.target.dataset.mode) return;
+  [...$('modeSeg').children].forEach(b=>b.classList.remove('on'));
+  e.target.classList.add('on');
+  S.mode = e.target.dataset.mode; S.cur = 0; S.playing=false; $('play').textContent='►';
+  $('proceduralPanel').style.display = S.mode==='procedural' ? '' : 'none';
+  $('collagePanel').style.display = S.mode==='collage' ? '' : 'none';
+  $('functionPanel').style.display = S.mode==='function' ? '' : 'none';
+  $('particlesPanel').style.display = S.mode==='particles' ? '' : 'none';
+  rebuild();
+};
+
+// ---------- FUNCTION mode controls ----------
+let exprTimer = null;
+$('expr').oninput = e => {
+  S.expr = e.target.value;
+  clearTimeout(exprTimer);
+  exprTimer = setTimeout(rebuild, 180);  // debounce while typing
+};
+$('preset').onchange = e => {
+  if (!e.target.value) return;
+  S.expr = e.target.value; $('expr').value = e.target.value; e.target.value='';
+  rebuild();
+};
+$('ramp').onchange = e => { S.ramp = e.target.value; rebuild(); };
+
+// ---------- PARTICLE controls ----------
+bindRange('pCount','P',v=>String(v),true);
+bindRange('pVel','P',v=>v.toFixed(1),true);
+bindRange('pDrag','P',v=>v.toFixed(2),true);
+bindRange('pSpread','P',v=>v.toFixed(2),true);
+bindRange('pJitter','P',v=>v.toFixed(2),true);
+bindRange('pSize','P',v=>v.toFixed(2),true);
+bindRange('pSeed','P',v=>String(v),true);
+$('pEmit').onchange = e => { S.P.pEmit = e.target.value; rebuild(); };
+$('pColor').oninput = e => { S.P.pColor = e.target.value; rebuild(); };
+
+// ---------- EFFECTS wiring ----------
+function fxToggle(cbId, bodyId, key) {
+  $(cbId).onchange = e => {
+    S.fx[key] = e.target.checked;
+    $(bodyId).classList.toggle('show', e.target.checked);
+    rebuild();
+  };
+}
+fxToggle('rotOn','rotBody','rot');
+fxToggle('disOn','disBody','dis');
+fxToggle('moshOn','moshBody','mosh');
+function fxRange(id, key, fmt) {
+  $(id).oninput = e => { S.fx[key] = +e.target.value; $(id+'V').textContent = fmt(+e.target.value); rebuild(); };
+}
+fxRange('rotAng','rotAng',v=>v+'°');
+fxRange('rotSpin','rotSpin',v=>String(v));
+fxRange('disAmt','disAmt',v=>String(v));
+fxRange('disFreq','disFreq',v=>String(v));
+fxRange('moshStr','moshStr',v=>v.toFixed(2));
+fxRange('moshShift','moshShift',v=>String(v));
+
+// mask shape selector
+$('maskShape').onchange = e => { S.maskShape = e.target.value; rebuild(); };
+
+// ---------- OVERLAY (phase 2b) ----------
+function rasterizeOverlay() {
+  if (!S.ovImg) { S.ovData = null; return; }
+  const W = S.size, H = S.size;
+  const cv = document.createElement('canvas'); cv.width=W; cv.height=H;
+  const ctx = cv.getContext('2d'); ctx.clearRect(0,0,W,H);
+  const iw=S.ovImg.naturalWidth, ih=S.ovImg.naturalHeight, sc=Math.min(W/iw,H/ih);
+  const nw=Math.max(1,Math.round(iw*sc)), nh=Math.max(1,Math.round(ih*sc));
+  ctx.imageSmoothingQuality='high';
+  ctx.drawImage(S.ovImg, (W-nw)>>1, (H-nh)>>1, nw, nh);
+  S.ovData = new Uint8Array(ctx.getImageData(0,0,W,H).data);
+}
+$('ovOn').onchange = e => { S.fx.ov = e.target.checked; $('ovBody').classList.toggle('show', e.target.checked); rebuild(); };
+$('ovMode').onchange = e => { S.fx.ovMode = e.target.value; rebuild(); };
+$('ovOp').oninput = e => { S.fx.ovOp = +e.target.value; $('ovOpV').textContent = (+e.target.value).toFixed(2); rebuild(); };
+function loadOverlay(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const img = new Image();
+  img.onload = () => { S.ovImg = img; rasterizeOverlay(); $('ovStatus').textContent = `loaded: ${file.name}`; rebuild(); };
+  img.src = URL.createObjectURL(file);
+}
+$('ovDrop').onclick = () => $('ovFile').click();
+$('ovFile').onchange = e => { loadOverlay(e.target.files[0]); e.target.value=''; };
+['dragenter','dragover'].forEach(ev => $('ovDrop').addEventListener(ev, e=>{e.preventDefault();$('ovDrop').classList.add('over');}));
+['dragleave','drop'].forEach(ev => $('ovDrop').addEventListener(ev, e=>{e.preventDefault();$('ovDrop').classList.remove('over');}));
+$('ovDrop').addEventListener('drop', e => loadOverlay(e.dataTransfer.files[0]));
+
+// ---------- COLLAGE: import ----------
+function addFiles(fileList) {
+  const files = [...fileList].filter(f => f.type.startsWith('image/'));
+  let pending = files.length;
+  if (!pending) return;
+  files.forEach(file => {
+    const img = new Image();
+    img.onload = () => { S.images.push({ img, name:file.name }); if(--pending===0){renderFilmstrip();rebuild();} };
+    img.onerror = () => { if(--pending===0){renderFilmstrip();rebuild();} };
+    img.src = URL.createObjectURL(file);
+  });
+}
+$('drop').onclick = () => $('fileInput').click();
+$('fileInput').onchange = e => { addFiles(e.target.files); e.target.value=''; };
+['dragenter','dragover'].forEach(ev => $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.add('over'); }));
+['dragleave','drop'].forEach(ev => $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.remove('over'); }));
+$('drop').addEventListener('drop', e => addFiles(e.dataTransfer.files));
+
+// ---------- COLLAGE: filmstrip + drag reorder ----------
+let dragIdx = null;
+function renderFilmstrip() {
+  const strip = $('filmstrip'); strip.innerHTML = '';
+  $('frameCount').textContent = S.images.length;
+  S.images.forEach((item, i) => {
+    const t = document.createElement('div');
+    t.className='thumb'; t.draggable=true; t.dataset.i=i;
+    const tc=document.createElement('canvas'); tc.width=48; tc.height=48;
+    const c=tc.getContext('2d');
+    const iw=item.img.naturalWidth, ih=item.img.naturalHeight, sc=Math.min(48/iw,48/ih);
+    const nw=Math.round(iw*sc), nh=Math.round(ih*sc);
+    c.drawImage(item.img,(48-nw)>>1,(48-nh)>>1,nw,nh);
+    t.appendChild(tc);
+    const num=document.createElement('div'); num.className='num'; num.textContent=i+1; t.appendChild(num);
+    const del=document.createElement('button'); del.className='del'; del.textContent='×';
+    del.onclick=ev=>{ev.stopPropagation(); S.images.splice(i,1); renderFilmstrip(); if(S.cur>=S.images.length)S.cur=Math.max(0,S.images.length-1); rebuild();};
+    t.appendChild(del);
+    t.addEventListener('dragstart',()=>{dragIdx=i; t.classList.add('dragging');});
+    t.addEventListener('dragend',()=>{dragIdx=null; t.classList.remove('dragging'); [...strip.children].forEach(c=>c.classList.remove('dragover'));});
+    t.addEventListener('dragover',ev=>{ev.preventDefault(); t.classList.add('dragover');});
+    t.addEventListener('dragleave',()=>t.classList.remove('dragover'));
+    t.addEventListener('drop',ev=>{
+      ev.preventDefault(); t.classList.remove('dragover');
+      const from=dragIdx, to=i;
+      if(from===null||from===to) return;
+      const moved=S.images.splice(from,1)[0]; S.images.splice(to,0,moved);
+      renderFilmstrip(); rebuild();
+    });
+    strip.appendChild(t);
+  });
+}
+bindRange('blur','S',v=>v.toFixed(1),true);
+
+rebuild();
+
+// ---------- export ----------
+function download(bytes, name) {
+  const blob = new Blob([bytes], { type:'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function estOutSize() {
+  const nf = effFrames(), s = S.upScale, W = S.size*s, H = S.size*s;
+  $('upInfo').textContent = `${W} px`;
+  // rough projected bytes for the ANB (4ch) — the bigger of the two
+  const bytes = 36 + (W+1)*(H+1)*4*nf;
+  let label;
+  if (bytes > 1e9) label = (bytes/1e9).toFixed(1)+' GB';
+  else if (bytes > 1e6) label = (bytes/1e6).toFixed(0)+' MB';
+  else label = (bytes/1e3).toFixed(0)+' KB';
+  const heavy = bytes > 150e6;
+  $('expNote').textContent = `≈ ${label} .anb` + (heavy ? ' — large, may take a moment' : '');
+}
+$('upScale').onchange = e => { S.upScale = +e.target.value; estOutSize(); };
+$('upModeSeg').onclick = e => {
+  if (!e.target.dataset.up) return;
+  [...$('upModeSeg').children].forEach(b=>b.classList.remove('on'));
+  e.target.classList.add('on'); S.upMode = e.target.dataset.up;
+};
+function exportFile(withAlpha, ext) {
+  if (S.mode==='collage' && S.images.length===0) { $('expNote').textContent='add images first'; return; }
+  const nf = effFrames(), g = build(withAlpha);
+  if (!g) { $('expNote').textContent='fix expression first'; return; }
+  const u = upscale(g.data, nf, S.size, S.size, g.c, S.upScale, S.upMode);
+  const c = withAlpha ? 4 : 3;
+  const opts = withAlpha ? { fps:S.fps, direction:1, end_behavior:0, step:20 } : { fps:S.fps };
+  const bytes = encode(u.data, nf, u.W, u.H, c, opts);
+  const tag = S.mode==='collage' ? 'collage' : (S.mode==='function' ? 'function' : S.gen);
+  download(bytes, `brushforge_${tag}_${u.W}_${nf}f.${ext}`);
+  $('expNote').textContent = `wrote .${ext} · ${u.W}×${u.H} · ${(bytes.length/1e6).toFixed(1)} MB`;
+}
+$('expAnb').onclick = () => exportFile(true, 'anb');
+$('expDwa').onclick = () => exportFile(false, 'dwa');
+
+rebuild();
+estOutSize();
+</script>
+</body>
+</html>
