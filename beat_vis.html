@@ -1,0 +1,3331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudioKit V1.2 — Multi-Generator Visual Suite &amp; Audio/MIDI Mod Matrix</title>
+<style>
+:root{
+  --bg0:#0d0e11; --bg1:#141519; --bg2:#1b1d22; --bg3:#23262c;
+  --line:#2a2d34; --line2:#3a3e47;
+  --tx:#d6dae2; --tx2:#8c93a1; --tx3:#5d6370;
+  --acc:#4fa3d8; --acc-dim:#4fa3d822; --acc-glow:#4fa3d866;
+  --ok:#5fcf8a; --warn:#e6b450; --err:#e5555f;
+  --r:6px; --ui-scale:1;
+  --f-ui:"Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg0);color:var(--tx);font-family:var(--f-ui);font-size:calc(13px * var(--ui-scale));line-height:1.35}
+input,select,button,textarea{font:inherit;color:inherit}
+input[type="text"],input[type="number"],select{user-select:text}
+button{cursor:pointer;background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:4px 8px;transition:background .12s,border-color .12s,color .12s}
+button:hover{background:#2b2f37;border-color:var(--line2)}
+button:active{transform:translateY(1px)}
+button.primary{background:var(--acc);color:#091017;border-color:var(--acc);font-weight:600}
+button.primary:hover{filter:brightness(1.08)}
+button.active{background:var(--acc-dim);border-color:var(--acc);color:var(--acc)}
+button.warn-pulse{background:#e6b45033;border-color:var(--warn);color:var(--warn);animation:pulseWarn .9s infinite alternate}
+@keyframes pulseWarn{from{box-shadow:0 0 0 0 #e6b45044}to{box-shadow:0 0 8px 1px #e6b45066}}
+
+/* App Shell Layout */
+#app{display:flex;flex-direction:column;width:100%;height:100%}
+#menubar{height:30px;background:var(--bg1);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 8px;gap:2px;flex-shrink:0;z-index:200}
+.brand-badge{display:flex;align-items:center;gap:6px;font-weight:700;font-size:12px;letter-spacing:.03em;padding:2px 8px 2px 4px;color:var(--tx);border-right:1px solid var(--line);margin-right:4px}
+.brand-dot{width:8px;height:8px;border-radius:50%;background:var(--acc);box-shadow:0 0 8px var(--acc)}
+.menu-root{position:relative;padding:4px 9px;border-radius:4px;font-size:12px;color:var(--tx2);cursor:pointer}
+.menu-root:hover,.menu-root.open{background:var(--bg3);color:var(--tx)}
+.menu-popup{position:fixed;min-width:220px;background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r);padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.65);z-index:5000;display:none}
+.menu-popup.open{display:block}
+.menu-item{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:5px 10px;border-radius:4px;font-size:12px;color:var(--tx);cursor:pointer}
+.menu-item:hover{background:var(--acc);color:#091017}
+.menu-item:hover .menu-accel{color:#091017}
+.menu-item.disabled{opacity:.42;pointer-events:none}
+.menu-accel{font-family:var(--f-mono);font-size:11px;color:var(--tx3)}
+.menu-sep{height:1px;background:var(--line);margin:4px 6px}
+
+/* Top Transport Strip */
+#transportbar{height:38px;background:var(--bg1);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 10px;gap:8px;flex-shrink:0;overflow-x:auto}
+.tp-group{display:flex;align-items:center;gap:4px;padding-right:8px;border-right:1px solid var(--line)}
+.tp-group:last-child{border-right:none;margin-left:auto;padding-right:0}
+.tp-btn{width:28px;height:26px;display:inline-flex;align-items:center;justify-content:center;padding:0;font-size:12px}
+.tp-readout{font-family:var(--f-mono);font-size:12px;background:var(--bg0);border:1px solid var(--line);border-radius:4px;padding:3px 8px;color:var(--tx);min-width:86px;text-align:center}
+.tp-num{width:54px;background:var(--bg3);border:1px solid var(--line);border-radius:4px;padding:2px 5px;font-family:var(--f-mono);font-size:11px;text-align:right}
+.tp-label{font-size:11px;color:var(--tx2)}
+.live-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg2);border:1px solid var(--line);color:var(--tx2)}
+.live-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--tx3)}
+.live-pill.on .dot{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+
+/* Workspace & Docks */
+#workspace{flex:1;display:flex;min-height:0;position:relative;overflow:hidden}
+.dock{display:flex;flex-direction:column;background:var(--bg1);border-color:var(--line);min-width:230px;max-width:50vw;flex-shrink:0;position:relative}
+#dock-left{width:315px;border-right:1px solid var(--line)}
+#dock-right{width:355px;border-left:1px solid var(--line)}
+.dock.empty{display:none}
+body.ui-hidden .dock,body.ui-hidden .splitter,body.ui-hidden #timeline-bar{display:none!important}
+.splitter{width:5px;background:transparent;cursor:col-resize;flex-shrink:0;z-index:20;transition:background .15s}
+.splitter:hover,.splitter.dragging{background:var(--acc)}
+
+/* Tabbed Panel Header & Body */
+.tabbar{height:30px;background:var(--bg0);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 4px;gap:2px;overflow-x:auto;flex-shrink:0}
+.tab-btn{height:24px;padding:0 9px;border-radius:4px;font-size:11.5px;color:var(--tx2);background:transparent;border:1px solid transparent;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;cursor:grab}
+.tab-btn:hover{color:var(--tx);background:var(--bg2)}
+.tab-btn.active{background:var(--bg2);color:var(--tx);border-color:var(--line);box-shadow:inset 0 2px 0 var(--acc)}
+.tab-badge{font-family:var(--f-mono);font-size:10px;padding:0 4px;border-radius:3px;background:var(--acc-dim);color:var(--acc)}
+.panel-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:10px;display:flex;flex-direction:column;gap:10px}
+.panel-body::-webkit-scrollbar{width:6px;height:6px}
+.panel-body::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+
+/* Floating Windows */
+.float-win{position:fixed;background:var(--bg1);border:1px solid var(--line2);border-radius:var(--r);box-shadow:0 16px 40px rgba(0,0,0,.75);display:flex;flex-direction:column;z-index:800;min-width:260px;min-height:180px;overflow:hidden}
+.float-title{height:28px;background:var(--bg2);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 8px;cursor:move;font-size:12px;font-weight:600}
+.float-actions{display:flex;gap:4px}
+.float-actions button{padding:1px 6px;font-size:11px}
+.float-resize{position:absolute;right:0;bottom:0;width:12px;height:12px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,var(--line2) 50%)}
+
+/* Center Stage + Timeline */
+#center-col{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg0)}
+#stage-wrap{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 50%,#151820 0%,#0b0c0f 100%)}
+#stage-canvas{display:block;max-width:100%;max-height:100%;border-radius:4px;box-shadow:0 10px 36px rgba(0,0,0,.65);cursor:crosshair}
+#stage-hud{position:absolute;top:10px;left:10px;display:flex;gap:6px;pointer-events:none;flex-wrap:wrap}
+.hud-chip{background:rgba(20,21,25,.84);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:4px;padding:3px 7px;font-family:var(--f-mono);font-size:11px;color:var(--tx2)}
+
+/* Mini Timeline Scrubber */
+#timeline-bar{height:58px;background:var(--bg1);border-top:1px solid var(--line);display:flex;flex-direction:column;padding:4px 10px;gap:4px;flex-shrink:0}
+#tl-ruler-wrap{position:relative;height:24px;background:var(--bg0);border:1px solid var(--line);border-radius:4px;cursor:pointer;overflow:hidden}
+#tl-canvas{width:100%;height:100%;display:block}
+#tl-meta{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--tx2)}
+
+/* Cards & Parameter Rows (SK.params) */
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:8px;display:flex;flex-direction:column;gap:7px}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:600;color:var(--tx);letter-spacing:.04em;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.param-row{display:flex;flex-direction:column;gap:4px;padding:3px 4px;border-radius:4px;transition:background .1s}
+.param-row:hover{background:rgba(255,255,255,.02)}
+.param-row.focused{background:var(--acc-dim)}
+.param-top{display:grid;grid-template-columns:104px 1fr 52px 20px 22px;align-items:center;gap:5px}
+.param-lbl{font-size:11.5px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:ew-resize}
+.param-lbl:hover{color:var(--tx)}
+.slider-box{position:relative;height:18px;display:flex;align-items:center}
+.slider-track{position:relative;width:100%;height:6px;background:var(--bg0);border:1px solid var(--line);border-radius:99px;overflow:hidden}
+.slider-base-fill{position:absolute;top:0;bottom:0;left:0;background:var(--line2)}
+.slider-mod-fill{position:absolute;top:0;bottom:0;background:var(--acc);opacity:.85;pointer-events:none}
+.slider-mod-tick{position:absolute;top:-3px;bottom:-3px;width:2px;background:#fff;box-shadow:0 0 6px var(--acc);pointer-events:none;display:none}
+.slider-input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;margin:0}
+.slider-thumb{position:absolute;top:50%;width:10px;height:10px;border-radius:50%;background:var(--tx);border:1.5px solid var(--bg0);transform:translate(-50%,-50%);pointer-events:none}
+.param-num{width:100%;background:var(--bg3);border:1px solid var(--line);border-radius:4px;padding:2px 4px;font-family:var(--f-mono);font-size:11px;text-align:right;color:var(--tx)}
+.param-num:focus{outline:none;border-color:var(--acc)}
+.key-btn,.mod-btn{width:20px;height:20px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:11px;border-radius:4px;background:var(--bg3);color:var(--tx3)}
+.key-btn.has-key{color:var(--warn);border-color:#e6b45066}
+.key-btn.on-key{background:var(--warn);color:#091017;border-color:var(--warn)}
+.mod-btn.has-mod{background:var(--acc-dim);border-color:var(--acc);color:var(--acc);font-weight:700}
+
+/* Inline Modulation Assignment Popover / Drawer */
+.mod-drawer{background:var(--bg1);border:1px solid var(--acc);border-radius:5px;padding:6px 7px;display:flex;flex-direction:column;gap:6px;margin-top:2px;box-shadow:inset 0 0 0 1px var(--acc-dim)}
+.mod-grid{display:grid;grid-template-columns:1fr auto;gap:5px;align-items:center}
+.mod-sel{background:var(--bg3);border:1px solid var(--line2);border-radius:4px;padding:3px 5px;font-size:11.5px;color:var(--tx)}
+.mod-subrow{display:flex;align-items:center;gap:4px}
+.mod-subrow label{font-size:10.5px;color:var(--tx2);min-width:52px}
+.mod-int-slider{flex:1;accent-color:var(--acc);height:4px}
+.mod-int-val{font-family:var(--f-mono);font-size:10.5px;width:40px;text-align:right;color:var(--acc)}
+.scale-pills{display:flex;gap:2px}
+.scale-pill{padding:2px 5px;font-family:var(--f-mono);font-size:10.5px;border-radius:3px;background:var(--bg3);border:1px solid var(--line);color:var(--tx2)}
+.scale-pill.active{background:var(--acc);color:#091017;border-color:var(--acc);font-weight:700}
+
+/* Audio Deck (AS1-AS8 & B1-B3) */
+.stem-row{display:grid;grid-template-columns:34px 1fr 22px 22px 46px 44px;align-items:center;gap:4px;background:var(--bg1);border:1px solid var(--line);border-radius:5px;padding:4px 5px;transition:border-color .12s}
+.stem-row.dragover{border-color:var(--acc);background:var(--acc-dim)}
+.stem-id{font-family:var(--f-mono);font-size:11px;font-weight:700;color:var(--acc);text-align:center;background:var(--acc-dim);border-radius:3px;padding:2px 0}
+.stem-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stem-name{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx);cursor:pointer}
+.stem-name:hover{color:var(--acc);text-decoration:underline}
+.vu-bar{height:5px;background:var(--bg0);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+.vu-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--ok),var(--warn) 78%,var(--err) 95%);transition:width 35ms linear}
+.ms-btn{width:22px;height:20px;padding:0;font-size:10px;font-weight:700}
+.ms-btn.mute-on{background:var(--err);color:#fff;border-color:var(--err)}
+.ms-btn.solo-on{background:var(--warn);color:#091017;border-color:var(--warn)}
+.mini-num{width:100%;background:var(--bg3);border:1px solid var(--line);border-radius:3px;padding:1px 3px;font-family:var(--f-mono);font-size:10px;text-align:right}
+.band-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.band-card{background:var(--bg1);border:1px solid var(--line);border-radius:5px;padding:6px;display:flex;flex-direction:column;gap:4px}
+.band-hdr{display:flex;justify-content:space-between;align-items:center;font-family:var(--f-mono);font-size:11px;font-weight:700;color:var(--acc)}
+
+/* MIDI M1-M16 */
+.midi-pipe{display:grid;grid-template-columns:34px 54px 1fr 68px 44px;align-items:center;gap:4px;background:var(--bg1);border:1px solid var(--line);border-radius:5px;padding:4px 5px}
+.midi-id{font-family:var(--f-mono);font-size:11px;font-weight:700;color:var(--ok);background:#5fcf8a1f;border-radius:3px;text-align:center;padding:2px 0}
+.midi-map-badge{font-family:var(--f-mono);font-size:10px;color:var(--tx2);background:var(--bg0);border:1px solid var(--line);border-radius:3px;padding:2px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.midi-mode-sel{background:var(--bg3);border:1px solid var(--line);border-radius:3px;padding:2px 3px;font-size:10.5px;color:var(--tx)}
+.learn-btn{padding:2px 4px;font-size:10px;font-weight:600;text-align:center}
+.pad-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px}
+.pad-btn{padding:5px 2px;font-family:var(--f-mono);font-size:10px;text-align:center;background:var(--bg3)}
+.pad-btn:active,.pad-btn.lit{background:var(--acc);color:#091017;border-color:var(--acc)}
+
+/* Generator Selector & Preset Pills */
+.gen-select-box{display:flex;flex-direction:column;gap:6px;background:linear-gradient(180deg,var(--bg2),var(--bg1));border:1px solid var(--line2);border-radius:var(--r);padding:8px}
+.gen-select-main{width:100%;background:var(--bg3);border:1px solid var(--acc);border-radius:5px;padding:5px 8px;font-weight:600;color:var(--tx);font-size:12px}
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.preset-btn{font-size:11px;padding:4px 6px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Statusbar & Toasts */
+#statusbar{height:24px;background:var(--bg1);border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 10px;font-size:11px;color:var(--tx2);flex-shrink:0}
+#toast-stack{position:fixed;bottom:32px;right:14px;display:flex;flex-direction:column;gap:6px;z-index:9000;pointer-events:none}
+.toast{background:var(--bg2);border:1px solid var(--line2);border-left:3px solid var(--acc);border-radius:var(--r);padding:7px 12px;font-size:12px;color:var(--tx);box-shadow:0 8px 24px rgba(0,0,0,.6);animation:toastIn .16s ease-out}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* Modals */
+.modal-backdrop{position:fixed;inset:0;background:rgba(5,6,8,.72);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:7000}
+.modal-backdrop.open{display:flex}
+.modal-box{background:var(--bg2);border:1px solid var(--line2);border-radius:8px;width:min(520px,92vw);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.8)}
+.modal-hdr{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;font-weight:600}
+.modal-body{padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.modal-ftr{padding:10px 14px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
+.row-between{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.muted{color:var(--tx2);font-size:11.5px}
+.mono{font-family:var(--f-mono)}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Desktop Menu Bar -->
+  <div id="menubar">
+    <div class="brand-badge"><span class="brand-dot"></span><span>StudioKit</span><span class="mono" style="font-size:10px;color:var(--acc)">V1.2</span></div>
+    <div id="menu-roots" style="display:flex;align-items:center;gap:2px"></div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+      <span class="mono muted" id="project-badge" style="font-size:11px">untitled.json</span>
+      <button class="primary" id="btn-top-export" style="padding:2px 9px;font-size:11.5px">Export</button>
+    </div>
+  </div>
+
+  <!-- Transport & Live Mod Status Bar -->
+  <div id="transportbar">
+    <div class="tp-group">
+      <button class="tp-btn" id="btn-home" title="Go to Start (Home)">⏮</button>
+      <button class="tp-btn" id="btn-step-b" title="Previous Frame (←)">◀</button>
+      <button class="tp-btn primary" id="btn-play" title="Play / Pause (Space)">▶</button>
+      <button class="tp-btn" id="btn-step-f" title="Next Frame (→)">▶|</button>
+      <button class="tp-btn active" id="btn-loop" title="Toggle Loop">🔁</button>
+      <div class="tp-readout" id="tp-time">00:00.00</div>
+      <div class="tp-readout" id="tp-beat" style="min-width:66px">1.1.0</div>
+    </div>
+    <div class="tp-group">
+      <span class="tp-label">BPM</span>
+      <input class="tp-num" id="inp-bpm" type="number" min="30" max="300" step="1" value="124">
+      <span class="tp-label">Bars</span>
+      <input class="tp-num" id="inp-bars" type="number" min="1" max="128" step="1" value="8">
+      <span class="tp-label">FPS</span>
+      <input class="tp-num" id="inp-fps" type="number" min="12" max="120" step="1" value="60">
+    </div>
+    <div class="tp-group">
+      <button id="btn-autokey" title="Toggle Auto-Keyframe">◆ Auto-Key</button>
+      <button id="btn-bake-mods" title="Record live Audio/MIDI modulation into keyframes">⏺ Bake Mods</button>
+    </div>
+    <div class="tp-group">
+      <div class="live-pill" id="pill-audio"><span class="dot"></span><span id="pill-audio-tx">Audio: Idle</span></div>
+      <div class="live-pill" id="pill-midi"><span class="dot"></span><span id="pill-midi-tx">MIDI: Scanning…</span></div>
+    </div>
+  </div>
+
+  <!-- Main Workspace -->
+  <div id="workspace">
+    <div class="dock" id="dock-left">
+      <div class="tabbar" id="tabs-left"></div>
+      <div class="panel-body" id="body-left"></div>
+    </div>
+    <div class="splitter" id="split-left"></div>
+
+    <div id="center-col">
+      <div id="stage-wrap">
+        <canvas id="stage-canvas" width="960" height="540"></canvas>
+        <div id="stage-hud">
+          <div class="hud-chip" id="hud-gen">Gen 1: Harmonic Mandala</div>
+          <div class="hud-chip" id="hud-zoom">100%</div>
+          <div class="hud-chip" id="hud-active-mods">0 Active Mods</div>
+          <div class="hud-chip" id="hud-hint">Click ~ or right-click any slider to route AS1–8 / B1–3 / M1–16</div>
+        </div>
+      </div>
+      <div id="timeline-bar">
+        <div id="tl-ruler-wrap"><canvas id="tl-canvas"></canvas></div>
+        <div id="tl-meta">
+          <span id="tl-focused-info">Focused Param: <strong style="color:var(--tx)">symmetry</strong> (Press <span class="mono">K</span> to keyframe)</span>
+          <span class="mono" id="tl-frame-info">Frame 0 / 929</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="splitter" id="split-right"></div>
+    <div class="dock" id="dock-right">
+      <div class="tabbar" id="tabs-right"></div>
+      <div class="panel-body" id="body-right"></div>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div id="statusbar">
+    <span id="status-left">Drag canvas: Interactive Sculpt · Middle/Space+Drag: Pan · Wheel: Zoom · Drop .wav/.mp3 onto AS1–AS8</span>
+    <span class="mono" id="status-right">SK v1.2.0 · 960×540 · 60 FPS</span>
+  </div>
+</div>
+
+<div id="menu-popup" class="menu-popup"></div>
+<div id="toast-stack"></div>
+<div id="modal-root" class="modal-backdrop"></div>
+<input type="file" id="hidden-file-input" style="display:none">
+
+<script>
+(() => {
+  'use strict';
+
+  /* ============================================================================
+   * 1. CORE STUDIO-KIT NAMESPACE & SEEDED PRNG (window.SK)
+   * ============================================================================ */
+  const SK = window.SK = {
+    version: '1.2.0',
+    util: {
+      clamp: (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
+      lerp: (a, b, t) => a + (b - a) * t,
+      lsGet(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } },
+      lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+      noteName(num) {
+        const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+        return names[num % 12] + (Math.floor(num / 12) - 1);
+      },
+      mulberry32(seed) {
+        let a = seed >>> 0;
+        return function () {
+          a |= 0;
+          a = (a + 0x6d2b79f5) | 0;
+          let t = Math.imul(a ^ (a >>> 15), 1 | a);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+    }
+  };
+  const { clamp, lerp, lsGet, lsSet, noteName, mulberry32 } = SK.util;
+
+  /* ============================================================================
+   * 2. UI, TOASTS, STATUS & MODALS
+   * ============================================================================ */
+  SK.ui = {
+    toast(msg, kind = 'info') {
+      const stack = document.getElementById('toast-stack');
+      const el = document.createElement('div');
+      el.className = 'toast';
+      if (kind === 'warn') el.style.borderLeftColor = 'var(--warn)';
+      if (kind === 'err') el.style.borderLeftColor = 'var(--err)';
+      if (kind === 'ok') el.style.borderLeftColor = 'var(--ok)';
+      el.textContent = msg;
+      stack.appendChild(el);
+      setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .2s'; setTimeout(() => el.remove(), 220); }, 2600);
+    },
+    status(text) {
+      document.getElementById('status-left').textContent = text;
+    },
+    modal({ title, bodyEl, buttons = [{ label: 'Close', primary: true }], onClose }) {
+      const root = document.getElementById('modal-root');
+      root.innerHTML = '';
+      const box = document.createElement('div');
+      box.className = 'modal-box';
+      const hdr = document.createElement('div');
+      hdr.className = 'modal-hdr';
+      hdr.innerHTML = `<span>${title}</span>`;
+      const closeModal = () => {
+        root.classList.remove('open');
+        if (onClose) onClose();
+      };
+      const xBtn = document.createElement('button');
+      xBtn.textContent = '✕';
+      xBtn.style.padding = '1px 6px';
+      xBtn.onclick = closeModal;
+      hdr.appendChild(xBtn);
+
+      const body = document.createElement('div');
+      body.className = 'modal-body';
+      if (typeof bodyEl === 'string') body.innerHTML = bodyEl;
+      else if (bodyEl) body.appendChild(bodyEl);
+
+      const ftr = document.createElement('div');
+      ftr.className = 'modal-ftr';
+      buttons.forEach(b => {
+        const btn = document.createElement('button');
+        btn.textContent = b.label;
+        if (b.primary) btn.classList.add('primary');
+        btn.onclick = () => { if (!b.onClick || b.onClick(closeModal) !== false) closeModal(); };
+        ftr.appendChild(btn);
+      });
+
+      box.append(hdr, body, ftr);
+      root.appendChild(box);
+      root.classList.add('open');
+      root.onclick = (e) => { if (e.target === root) closeModal(); };
+      return { close: closeModal, body };
+    },
+    closeModal() {
+      document.getElementById('modal-root').classList.remove('open');
+    }
+  };
+  SK.toast = SK.ui.toast;
+
+  /* ============================================================================
+   * 3. THEME & UI SCALE
+   * ============================================================================ */
+  SK.theme = {
+    accent: '#4fa3d8',
+    scale: 1,
+    apply({ accent, scale } = {}) {
+      if (accent) {
+        this.accent = accent;
+        document.documentElement.style.setProperty('--acc', accent);
+        document.documentElement.style.setProperty('--acc-dim', accent + '22');
+        document.documentElement.style.setProperty('--acc-glow', accent + '66');
+      }
+      if (scale) {
+        this.scale = scale;
+        document.documentElement.style.setProperty('--ui-scale', String(scale));
+      }
+      lsSet('sk_v12_theme', { accent: this.accent, scale: this.scale });
+    }
+  };
+
+  /* ============================================================================
+   * 4. KEYBOARD SHORTCUT REGISTRY (SK.keys)
+   * ============================================================================ */
+  SK.keys = {
+    bindings: [],
+    bind(combo, fn, meta = {}) {
+      this.bindings.push({ combo: combo.toLowerCase(), raw: combo, fn, label: meta.label || combo, group: meta.group || 'General' });
+    },
+    match(e, combo) {
+      const parts = combo.split('+');
+      const key = parts[parts.length - 1];
+      const needCtrl = parts.includes('ctrl') || parts.includes('cmd');
+      const needShift = parts.includes('shift');
+      const needAlt = parts.includes('alt');
+      if (Boolean(e.ctrlKey || e.metaKey) !== needCtrl) return false;
+      if (Boolean(e.shiftKey) !== needShift) return false;
+      if (Boolean(e.altKey) !== needAlt) return false;
+      const k = e.key.toLowerCase();
+      if (key === 'space') return k === ' ';
+      if (key === 'left') return k === 'arrowleft';
+      if (key === 'right') return k === 'arrowright';
+      return k === key;
+    },
+    showHelp() {
+      const groups = {};
+      this.bindings.forEach(b => { (groups[b.group] ||= []).push(b); });
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+      Object.entries(groups).forEach(([g, list]) => {
+        const sec = document.createElement('div');
+        sec.innerHTML = `<div style="font-weight:600;color:var(--acc);margin-bottom:4px;font-size:12px">${g}</div>`;
+        list.forEach(b => {
+          const r = document.createElement('div');
+          r.className = 'row-between';
+          r.style.cssText = 'padding:3px 0;border-bottom:1px solid var(--line)';
+          r.innerHTML = `<span>${b.label}</span><span class="mono" style="background:var(--bg3);padding:1px 6px;border-radius:3px;font-size:11px">${b.raw}</span>`;
+          sec.appendChild(r);
+        });
+        div.appendChild(sec);
+      });
+      SK.ui.modal({ title: 'Keyboard Shortcuts (F1)', bodyEl: div });
+    }
+  };
+
+  window.addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      SK.keys.showHelp();
+      return;
+    }
+    for (const b of SK.keys.bindings) {
+      if (SK.keys.match(e, b.combo)) {
+        e.preventDefault();
+        b.fn(e);
+        return;
+      }
+    }
+  });
+
+  /* ============================================================================
+   * 5. DATA-DRIVEN MENU BAR & CONTEXT POPUP (SK.menu)
+   * ============================================================================ */
+  SK.menu = {
+    spec: {},
+    openMenuName: null,
+    bar(spec) {
+      this.spec = spec;
+      const root = document.getElementById('menu-roots');
+      root.innerHTML = '';
+      Object.keys(spec).forEach(name => {
+        const el = document.createElement('div');
+        el.className = 'menu-root';
+        el.textContent = name;
+        el.onmousedown = (e) => {
+          e.stopPropagation();
+          if (this.openMenuName === name) this.close();
+          else this.openRoot(name, el);
+        };
+        el.onmouseenter = () => {
+          if (this.openMenuName && this.openMenuName !== name) this.openRoot(name, el);
+        };
+        root.appendChild(el);
+      });
+    },
+    openRoot(name, anchorEl) {
+      this.openMenuName = name;
+      document.querySelectorAll('.menu-root').forEach(el => el.classList.toggle('open', el.textContent === name));
+      const rect = anchorEl.getBoundingClientRect();
+      const items = typeof this.spec[name] === 'function' ? this.spec[name]() : this.spec[name];
+      this.popupAt(rect.left, rect.bottom + 2, items);
+    },
+    context(e, items) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.openMenuName = '__ctx__';
+      this.popupAt(e.clientX, e.clientY, items);
+    },
+    popupAt(x, y, items) {
+      const pop = document.getElementById('menu-popup');
+      pop.innerHTML = '';
+      items.forEach(item => {
+        if (!item) {
+          const sep = document.createElement('div');
+          sep.className = 'menu-sep';
+          pop.appendChild(sep);
+          return;
+        }
+        const [label, fn, accel, opts = {}] = item;
+        const row = document.createElement('div');
+        row.className = 'menu-item' + (opts.disabled ? ' disabled' : '');
+        row.innerHTML = `<span>${opts.checked ? '✓ ' : ''}${label}</span><span class="menu-accel">${accel || ''}</span>`;
+        row.onclick = (e) => {
+          e.stopPropagation();
+          this.close();
+          if (fn) fn();
+        };
+        pop.appendChild(row);
+      });
+      pop.classList.add('open');
+      const pw = pop.offsetWidth || 220;
+      const ph = pop.offsetHeight || 200;
+      pop.style.left = clamp(x, 4, window.innerWidth - pw - 6) + 'px';
+      pop.style.top = clamp(y, 4, window.innerHeight - ph - 6) + 'px';
+    },
+    close() {
+      this.openMenuName = null;
+      document.querySelectorAll('.menu-root').forEach(el => el.classList.remove('open'));
+      document.getElementById('menu-popup').classList.remove('open');
+    }
+  };
+  window.addEventListener('mousedown', () => SK.menu.close());
+
+  /* ============================================================================
+   * 6. TABBED PANELS, TEAR-OFF FLOATING WINDOWS & RESIZABLE SPLITTERS (SK.panels)
+   * ============================================================================ */
+  SK.panels = {
+    registry: {},
+    activeTab: { left: null, right: null },
+    uiHidden: false,
+    _zTop: 810,
+    register(side, list) {
+      list.forEach(p => {
+        this.registry[p.id] = {
+          id: p.id,
+          title: p.title,
+          badge: p.badge || '',
+          el: p.el,
+          defaultSide: side,
+          location: side,
+          floatRect: { x: 140 + Object.keys(this.registry).length * 26, y: 92, w: 350, h: 480 }
+        };
+        if (!this.activeTab[side]) this.activeTab[side] = p.id;
+      });
+      this.render();
+    },
+    activate(id) {
+      const p = this.registry[id];
+      if (!p) return;
+      if (p.location === 'hidden') p.location = p.defaultSide;
+      if (p.location === 'left' || p.location === 'right') {
+        this.activeTab[p.location] = id;
+        this.render();
+      } else if (p.location === 'float') {
+        const fw = document.getElementById('float-' + id);
+        if (fw) fw.style.zIndex = String(++this._zTop);
+      }
+    },
+    float(id, rect) {
+      const p = this.registry[id];
+      if (!p) return;
+      const prevSide = p.location;
+      p.location = 'float';
+      if (rect) Object.assign(p.floatRect, rect);
+      if (prevSide === 'left' || prevSide === 'right') {
+        const next = Object.values(this.registry).find(x => x.location === prevSide);
+        this.activeTab[prevSide] = next ? next.id : null;
+      }
+      this.render();
+    },
+    dock(id, side) {
+      const p = this.registry[id];
+      if (!p) return;
+      p.location = side || p.defaultSide;
+      this.activeTab[p.location] = id;
+      this.render();
+    },
+    toggleHideUI() {
+      this.uiHidden = document.body.classList.toggle('ui-hidden');
+      document.querySelectorAll('.float-win').forEach(w => w.style.display = this.uiHidden ? 'none' : 'flex');
+      SK.toast(this.uiHidden ? 'UI Hidden (Press H to restore)' : 'UI Restored');
+    },
+    resetLayout() {
+      Object.values(this.registry).forEach(p => { p.location = p.defaultSide; });
+      this.activeTab.left = Object.values(this.registry).find(p => p.location === 'left')?.id || null;
+      this.activeTab.right = Object.values(this.registry).find(p => p.location === 'right')?.id || null;
+      document.getElementById('dock-left').style.width = '315px';
+      document.getElementById('dock-right').style.width = '355px';
+      this.render();
+      SK.toast('Panel layout reset');
+    },
+    windowMenu() {
+      return () => {
+        const items = Object.values(this.registry).map(p => [
+          `${p.title} (${p.location})`,
+          () => this.activate(p.id),
+          p.location === 'float' ? 'Float' : ''
+        ]);
+        items.push(null, ['Toggle Hide UI', () => this.toggleHideUI(), 'H'], ['Reset Layout', () => this.resetLayout()]);
+        return items;
+      };
+    },
+    render() {
+      document.querySelectorAll('.float-win').forEach(w => w.remove());
+
+      ['left', 'right'].forEach(side => {
+        const dock = document.getElementById('dock-' + side);
+        const tabbar = document.getElementById('tabs-' + side);
+        const body = document.getElementById('body-' + side);
+        const tabs = Object.values(this.registry).filter(p => p.location === side);
+
+        tabbar.innerHTML = '';
+        body.innerHTML = '';
+        if (!tabs.length) {
+          dock.classList.add('empty');
+          return;
+        }
+        dock.classList.remove('empty');
+        if (!tabs.some(t => t.id === this.activeTab[side])) this.activeTab[side] = tabs[0].id;
+
+        tabs.forEach(p => {
+          const btn = document.createElement('div');
+          btn.className = 'tab-btn' + (this.activeTab[side] === p.id ? ' active' : '');
+          btn.innerHTML = `<span>${p.title}</span>${p.badge ? `<span class="tab-badge">${p.badge}</span>` : ''}`;
+          btn.title = 'Click to view · Drag out or double-click to float';
+          btn.onclick = () => { this.activeTab[side] = p.id; this.render(); };
+          btn.ondblclick = () => this.float(p.id);
+          btn.onmousedown = (e) => {
+            if (e.button !== 0) return;
+            const sx = e.clientX, sy = e.clientY;
+            const onMove = (me) => {
+              if (Math.hypot(me.clientX - sx, me.clientY - sy) > 22) {
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+                this.float(p.id, { x: clamp(me.clientX - 80, 12, window.innerWidth - 360), y: clamp(me.clientY - 14, 34, window.innerHeight - 240) });
+              }
+            };
+            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+          };
+          tabbar.appendChild(btn);
+
+          if (this.activeTab[side] === p.id) body.appendChild(p.el);
+        });
+      });
+
+      Object.values(this.registry).filter(p => p.location === 'float').forEach(p => {
+        const win = document.createElement('div');
+        win.className = 'float-win';
+        win.id = 'float-' + p.id;
+        win.style.left = clamp(p.floatRect.x, 8, window.innerWidth - 260) + 'px';
+        win.style.top = clamp(p.floatRect.y, 32, window.innerHeight - 160) + 'px';
+        win.style.width = p.floatRect.w + 'px';
+        win.style.height = p.floatRect.h + 'px';
+        win.style.zIndex = String(++this._zTop);
+
+        const title = document.createElement('div');
+        title.className = 'float-title';
+        title.innerHTML = `<span>${p.title}</span>`;
+        title.ondblclick = () => this.dock(p.id, p.defaultSide);
+
+        const acts = document.createElement('div');
+        acts.className = 'float-actions';
+        const dockL = document.createElement('button'); dockL.textContent = '◧'; dockL.title = 'Dock Left'; dockL.onclick = () => this.dock(p.id, 'left');
+        const dockR = document.createElement('button'); dockR.textContent = '◨'; dockR.title = 'Dock Right'; dockR.onclick = () => this.dock(p.id, 'right');
+        acts.append(dockL, dockR);
+        title.appendChild(acts);
+
+        title.onmousedown = (e) => {
+          if (e.target.tagName === 'BUTTON') return;
+          win.style.zIndex = String(++this._zTop);
+          const ox = e.clientX - win.offsetLeft, oy = e.clientY - win.offsetTop;
+          const onMove = (me) => {
+            p.floatRect.x = clamp(me.clientX - ox, 4, window.innerWidth - 180);
+            p.floatRect.y = clamp(me.clientY - oy, 30, window.innerHeight - 60);
+            win.style.left = p.floatRect.x + 'px';
+            win.style.top = p.floatRect.y + 'px';
+          };
+          const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+        };
+
+        const body = document.createElement('div');
+        body.className = 'panel-body';
+        body.appendChild(p.el);
+
+        const grip = document.createElement('div');
+        grip.className = 'float-resize';
+        grip.onmousedown = (e) => {
+          e.stopPropagation();
+          const sw = win.offsetWidth, sh = win.offsetHeight, sx = e.clientX, sy = e.clientY;
+          const onMove = (me) => {
+            p.floatRect.w = clamp(sw + me.clientX - sx, 260, window.innerWidth - 40);
+            p.floatRect.h = clamp(sh + me.clientY - sy, 180, window.innerHeight - 60);
+            win.style.width = p.floatRect.w + 'px';
+            win.style.height = p.floatRect.h + 'px';
+          };
+          const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+        };
+
+        win.append(title, body, grip);
+        document.body.appendChild(win);
+      });
+    }
+  };
+
+  function initSplitter(splitId, dockId, invert) {
+    const sp = document.getElementById(splitId);
+    const dk = document.getElementById(dockId);
+    sp.onmousedown = (e) => {
+      e.preventDefault();
+      sp.classList.add('dragging');
+      const startX = e.clientX, startW = dk.offsetWidth;
+      const onMove = (me) => {
+        const dx = invert ? (startX - me.clientX) : (me.clientX - startX);
+        dk.style.width = clamp(startW + dx, 230, Math.floor(window.innerWidth * 0.48)) + 'px';
+      };
+      const onUp = () => {
+        sp.classList.remove('dragging');
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    };
+  }
+  initSplitter('split-left', 'dock-left', false);
+  initSplitter('split-right', 'dock-right', true);
+
+  /* ============================================================================
+   * 7. SNAPSHOT UNDO / REDO (SK.undo)
+   * ============================================================================ */
+  SK.undo = {
+    stack: [],
+    future: [],
+    captureFn: null,
+    restoreFn: null,
+    track(captureFn, restoreFn) {
+      this.captureFn = captureFn;
+      this.restoreFn = restoreFn;
+      this.push('Initial State');
+    },
+    push(label = 'Edit') {
+      if (!this.captureFn) return;
+      const snap = JSON.stringify(this.captureFn());
+      if (this.stack.length && this.stack[this.stack.length - 1].snap === snap) return;
+      this.stack.push({ label, snap });
+      if (this.stack.length > 50) this.stack.shift();
+      this.future.length = 0;
+    },
+    undo() {
+      if (this.stack.length <= 1 || !this.restoreFn) return SK.toast('Nothing to undo');
+      const cur = this.stack.pop();
+      this.future.push(cur);
+      const prev = this.stack[this.stack.length - 1];
+      this.restoreFn(JSON.parse(prev.snap));
+      SK.toast('Undo: ' + cur.label);
+    },
+    redo() {
+      if (!this.future.length || !this.restoreFn) return SK.toast('Nothing to redo');
+      const next = this.future.pop();
+      this.stack.push(next);
+      this.restoreFn(JSON.parse(next.snap));
+      SK.toast('Redo: ' + next.label);
+    }
+  };
+
+  /* ============================================================================
+   * 8. DETERMINISTIC TRANSPORT & BPM CLOCK (SK.transport)
+   * ============================================================================ */
+  SK.transport = {
+    playing: false,
+    time: 0,
+    bpm: 124,
+    bars: 8,
+    beatsPerBar: 4,
+    fps: 60,
+    loop: true,
+    _lastRaf: null,
+    get duration() {
+      return (this.bars * this.beatsPerBar * 60) / this.bpm;
+    },
+    get totalFrames() {
+      return Math.max(1, Math.round(this.duration * this.fps));
+    },
+    get frame() {
+      return Math.floor(this.time * this.fps);
+    },
+    setTime(t, fromAudio = false) {
+      const dur = this.duration;
+      if (this.loop) this.time = ((t % dur) + dur) % dur;
+      else this.time = clamp(t, 0, dur);
+      if (!fromAudio && SK.audioDeck) SK.audioDeck.syncTransport('seek');
+      this.updateUI();
+    },
+    play() {
+      if (this.playing) return;
+      this.playing = true;
+      this._lastRaf = performance.now();
+      document.getElementById('btn-play').textContent = '⏸';
+      if (SK.audioDeck) SK.audioDeck.syncTransport('play');
+    },
+    pause() {
+      if (!this.playing) return;
+      this.playing = false;
+      document.getElementById('btn-play').textContent = '▶';
+      if (SK.audioDeck) SK.audioDeck.syncTransport('pause');
+    },
+    toggle() { this.playing ? this.pause() : this.play(); },
+    stepFrame(delta) {
+      this.pause();
+      this.setTime(this.time + delta / this.fps);
+    },
+    tick(now) {
+      if (this.playing) {
+        const dt = Math.min(0.1, (now - (this._lastRaf || now)) / 1000);
+        this._lastRaf = now;
+        let next = this.time + dt;
+        const dur = this.duration;
+        if (next >= dur) {
+          if (this.loop) {
+            next %= dur;
+            if (SK.audioDeck) SK.audioDeck.syncTransport('loop');
+          } else {
+            next = dur;
+            this.pause();
+          }
+        }
+        this.time = next;
+        this.updateUI();
+      } else {
+        this._lastRaf = now;
+      }
+    },
+    updateUI() {
+      const t = this.time;
+      const mins = Math.floor(t / 60);
+      const secs = (t % 60).toFixed(2).padStart(5, '0');
+      document.getElementById('tp-time').textContent = `${String(mins).padStart(2, '0')}:${secs}`;
+      const totalBeats = (t * this.bpm) / 60;
+      const bar = Math.floor(totalBeats / this.beatsPerBar) + 1;
+      const beat = Math.floor(totalBeats % this.beatsPerBar) + 1;
+      const sub = Math.floor((totalBeats % 1) * 4) + 1;
+      document.getElementById('tp-beat').textContent = `${bar}.${beat}.${sub}`;
+      document.getElementById('tl-frame-info').textContent = `Frame ${this.frame} / ${this.totalFrames}`;
+    }
+  };
+
+  /* ============================================================================
+   * 9. KEYFRAME TRACKS & FULL 19-CURVE EASING ENGINE (SK.anim)
+   * ============================================================================ */
+  SK.anim = {
+    autoKey: false,
+    tracks: {}, // prop -> [{ t, v, ease }]
+    EASE: {
+      linear: t => t,
+      hold: t => (t >= 1 ? 1 : 0),
+      sineIn: t => 1 - Math.cos((t * Math.PI) / 2),
+      sineOut: t => Math.sin((t * Math.PI) / 2),
+      sineInOut: t => -(Math.cos(Math.PI * t) - 1) / 2,
+      quadIn: t => t * t,
+      quadOut: t => 1 - (1 - t) * (1 - t),
+      quadInOut: t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
+      cubicIn: t => t * t * t,
+      cubicOut: t => 1 - Math.pow(1 - t, 3),
+      cubicInOut: t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+      expoIn: t => (t === 0 ? 0 : Math.pow(2, 10 * t - 10)),
+      expoOut: t => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
+      expoInOut: t => (t === 0 ? 0 : t === 1 ? 1 : t < 0.5 ? Math.pow(2, 20 * t - 10) / 2 : (2 - Math.pow(2, -20 * t + 10)) / 2),
+      backIn: t => 2.70158 * t * t * t - 1.70158 * t * t,
+      backOut: t => 1 + 2.70158 * Math.pow(t - 1, 3) + 1.70158 * Math.pow(t - 1, 2),
+      backInOut: t => {
+        const c2 = 1.70158 * 1.525;
+        return t < 0.5 ? (Math.pow(2 * t, 2) * ((c2 + 1) * 2 * t - c2)) / 2 : (Math.pow(2 * t - 2, 2) * ((c2 + 1) * (t * 2 - 2) + c2) + 2) / 2;
+      },
+      elasticOut: t => (t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * ((2 * Math.PI) / 3)) + 1),
+      bounceOut: t => {
+        const n1 = 7.5625, d1 = 2.75;
+        if (t < 1 / d1) return n1 * t * t;
+        if (t < 2 / d1) return n1 * (t -= 1.5 / d1) * t + 0.75;
+        if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375;
+        return n1 * (t -= 2.625 / d1) * t + 0.984375;
+      }
+    },
+    setKey(prop, t, v, ease = 'cubicInOut') {
+      const list = (this.tracks[prop] ||= []);
+      const idx = list.findIndex(k => Math.abs(k.t - t) < 0.02);
+      if (idx >= 0) list[idx] = { t, v, ease };
+      else { list.push({ t, v, ease }); list.sort((a, b) => a.t - b.t); }
+    },
+    removeKeyAt(prop, t) {
+      const list = this.tracks[prop];
+      if (!list) return;
+      this.tracks[prop] = list.filter(k => Math.abs(k.t - t) >= 0.02);
+      if (!this.tracks[prop].length) delete this.tracks[prop];
+    },
+    hasKeys(prop) { return Boolean(this.tracks[prop] && this.tracks[prop].length); },
+    isOnKey(prop, t) { return Boolean(this.tracks[prop]?.some(k => Math.abs(k.t - t) < 0.02)); },
+    eval(prop, t, fallback) {
+      const list = this.tracks[prop];
+      if (!list || !list.length) return fallback;
+      if (t <= list[0].t) return list[0].v;
+      if (t >= list[list.length - 1].t) return list[list.length - 1].v;
+      for (let i = 0; i < list.length - 1; i++) {
+        const a = list[i], b = list[i + 1];
+        if (t >= a.t && t <= b.t) {
+          const span = Math.max(1e-6, b.t - a.t);
+          const u = clamp((t - a.t) / span, 0, 1);
+          const fn = this.EASE[a.ease] || this.EASE.linear;
+          return lerp(a.v, b.v, fn(u));
+        }
+      }
+      return fallback;
+    }
+  };
+
+  /* ============================================================================
+   * 10. 8-CHANNEL AUDIO STEM DECK (AS1–AS8) & 3-BAND EQ SPLITTER (B1–B3)
+   * ============================================================================ */
+  SK.audioDeck = {
+    ctx: null,
+    masterGain: null,
+    splitterInputGain: null,
+    lowFilter1: null, lowFilter2: null, lowAnalyser: null,
+    midFilter1: null, midFilter2: null, midAnalyser: null,
+    highFilter1: null, highFilter2: null, highAnalyser: null,
+    splitterSource: 'master',
+    lowMidHz: 250,
+    midHighHz: 2500,
+    bands: [
+      { id: 'B1', name: 'Low', value: 0, attack: 12, release: 95 },
+      { id: 'B2', name: 'Mid', value: 0, attack: 10, release: 80 },
+      { id: 'B3', name: 'High', value: 0, attack: 6, release: 65 }
+    ],
+    stems: Array.from({ length: 8 }, (_, i) => ({
+      id: 'AS' + (i + 1),
+      index: i,
+      name: '(Drop audio or click to load)',
+      buffer: null,
+      sourceNode: null,
+      gainNode: null,
+      analyser: null,
+      timeData: null,
+      gain: 1.0,
+      mute: false,
+      solo: false,
+      attack: 12,
+      release: 110,
+      value: 0,
+      offlineEnv: null
+    })),
+    ensureContext() {
+      if (this.ctx) {
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        return this.ctx;
+      }
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) {
+        SK.toast('WebAudio API unavailable in this browser', 'err');
+        return null;
+      }
+      this.ctx = new AC();
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.connect(this.ctx.destination);
+
+      this.splitterInputGain = this.ctx.createGain();
+      this.masterGain.connect(this.splitterInputGain);
+
+      this.lowFilter1 = this.ctx.createBiquadFilter();
+      this.lowFilter2 = this.ctx.createBiquadFilter();
+      this.lowFilter1.type = this.lowFilter2.type = 'lowpass';
+      this.lowAnalyser = this.ctx.createAnalyser();
+      this.lowAnalyser.fftSize = 512;
+
+      this.midFilter1 = this.ctx.createBiquadFilter();
+      this.midFilter2 = this.ctx.createBiquadFilter();
+      this.midFilter1.type = 'highpass';
+      this.midFilter2.type = 'lowpass';
+      this.midAnalyser = this.ctx.createAnalyser();
+      this.midAnalyser.fftSize = 512;
+
+      this.highFilter1 = this.ctx.createBiquadFilter();
+      this.highFilter2 = this.ctx.createBiquadFilter();
+      this.highFilter1.type = this.highFilter2.type = 'highpass';
+      this.highAnalyser = this.ctx.createAnalyser();
+      this.highAnalyser.fftSize = 512;
+
+      this.splitterInputGain.connect(this.lowFilter1);
+      this.lowFilter1.connect(this.lowFilter2);
+      this.lowFilter2.connect(this.lowAnalyser);
+
+      this.splitterInputGain.connect(this.midFilter1);
+      this.midFilter1.connect(this.midFilter2);
+      this.midFilter2.connect(this.midAnalyser);
+
+      this.splitterInputGain.connect(this.highFilter1);
+      this.highFilter1.connect(this.highFilter2);
+      this.highFilter2.connect(this.highAnalyser);
+
+      this.stems.forEach(s => {
+        s.gainNode = this.ctx.createGain();
+        s.analyser = this.ctx.createAnalyser();
+        s.analyser.fftSize = 512;
+        s.timeData = new Float32Array(s.analyser.fftSize);
+        s.gainNode.connect(s.analyser);
+        s.gainNode.connect(this.masterGain);
+      });
+
+      this.updateCrossovers();
+      this.updateMuteSolo();
+      this.rerouteSplitter();
+      document.getElementById('pill-audio').classList.add('on');
+      document.getElementById('pill-audio-tx').textContent = 'Audio: Ready';
+      return this.ctx;
+    },
+    updateCrossovers() {
+      if (!this.ctx) return;
+      const lm = clamp(this.lowMidHz, 40, 1200);
+      const mh = clamp(this.midHighHz, lm + 100, 12000);
+      this.lowFilter1.frequency.value = this.lowFilter2.frequency.value = lm;
+      this.midFilter1.frequency.value = lm;
+      this.midFilter2.frequency.value = mh;
+      this.highFilter1.frequency.value = this.highFilter2.frequency.value = mh;
+    },
+    rerouteSplitter() {
+      if (!this.ctx) return;
+      try { this.masterGain.disconnect(this.splitterInputGain); } catch {}
+      this.stems.forEach(s => { try { s.gainNode.disconnect(this.splitterInputGain); } catch {} });
+      if (this.splitterSource === 'master') {
+        this.masterGain.connect(this.splitterInputGain);
+      } else {
+        const stem = this.stems.find(s => s.id === this.splitterSource);
+        if (stem) stem.gainNode.connect(this.splitterInputGain);
+      }
+    },
+    updateMuteSolo() {
+      const anySolo = this.stems.some(s => s.solo);
+      this.stems.forEach(s => {
+        const audible = anySolo ? s.solo : !s.mute;
+        if (s.gainNode && this.ctx) s.gainNode.gain.setTargetAtTime(audible ? s.gain : 0, this.ctx.currentTime, 0.01);
+      });
+    },
+    async loadStemFile(index, file) {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+      try {
+        const ab = await file.arrayBuffer();
+        const buf = await ctx.decodeAudioData(ab);
+        const s = this.stems[index];
+        s.buffer = buf;
+        s.name = file.name;
+        s.offlineEnv = null;
+        this.renderUI();
+        if (SK.transport.playing) this.syncTransport('play');
+        SK.toast(`Loaded ${s.id}: ${file.name}`, 'ok');
+      } catch (err) {
+        SK.toast(`Failed to decode audio: ${err.message}`, 'err');
+      }
+    },
+    loadSyntheticStems() {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+      const sr = ctx.sampleRate;
+      const dur = Math.max(4, SK.transport.duration);
+      const len = Math.floor(sr * dur);
+      const beatSec = 60 / SK.transport.bpm;
+
+      const specs = [
+        { name: 'Kick_Sub.syn', gen: (t) => {
+          const bt = t % beatSec;
+          const env = Math.exp(-bt * 16);
+          const freq = 46 + 130 * Math.exp(-bt * 38);
+          return Math.sin(2 * Math.PI * freq * bt) * env * 0.95;
+        }},
+        { name: 'Snare_Snap.syn', gen: (t) => {
+          const bIdx = Math.floor(t / beatSec);
+          if (bIdx % 2 !== 1) return 0;
+          const bt = t % beatSec;
+          const env = Math.exp(-bt * 18);
+          const tone = Math.sin(2 * Math.PI * 195 * bt) * Math.exp(-bt * 28);
+          const noise = ((Math.sin(t * 91823.3) * 43758.5) % 1) * 0.7;
+          return (tone * 0.5 + noise * 0.6) * env;
+        }},
+        { name: 'HiHat_16th.syn', gen: (t) => {
+          const step = beatSec / 4;
+          const st = t % step;
+          const stepIdx = Math.floor(t / step);
+          const accent = (stepIdx % 4 === 2) ? 0.85 : 0.35;
+          const env = Math.exp(-st * 55) * accent;
+          const metallic = Math.sin(t * 21311.7) + Math.sin(t * 34129.1);
+          return metallic * 0.35 * env;
+        }},
+        { name: 'Acid_Bass.syn', gen: (t) => {
+          const step = beatSec / 2;
+          const st = t % step;
+          const notes = [55, 55, 65.41, 55, 73.42, 65.41, 82.41, 55];
+          const f = notes[Math.floor(t / step) % notes.length];
+          const saw = 2 * ((t * f) % 1) - 1;
+          return saw * Math.exp(-st * 5) * 0.45;
+        }},
+        { name: 'Pad_Chord.syn', gen: (t) => {
+          const swell = 0.5 - 0.5 * Math.cos((2 * Math.PI * t) / (beatSec * 8));
+          const c = Math.sin(2 * Math.PI * 220 * t) + Math.sin(2 * Math.PI * 261.63 * t) + Math.sin(2 * Math.PI * 329.63 * t);
+          return (c / 3) * swell * 0.35;
+        }},
+        { name: 'Pluck_Arp.syn', gen: (t) => {
+          const step = beatSec / 3;
+          const st = t % step;
+          const freqs = [440, 523.25, 659.25, 880, 659.25, 523.25];
+          const f = freqs[Math.floor(t / step) % freqs.length];
+          return Math.sin(2 * Math.PI * f * t) * Math.exp(-st * 14) * 0.4;
+        }},
+        { name: 'Perc_Tom.syn', gen: (t) => {
+          const barSec = beatSec * 4;
+          const bt = t % barSec;
+          if (bt < beatSec * 3) return 0;
+          const lt = bt - beatSec * 3;
+          return Math.sin(2 * Math.PI * (120 * Math.exp(-lt * 10)) * lt) * Math.exp(-lt * 12) * 0.55;
+        }},
+        { name: 'Riser_Sweep.syn', gen: (t) => {
+          const barSec = beatSec * 8;
+          const phase = (t % barSec) / barSec;
+          const f = 140 + phase * phase * 1800;
+          return Math.sin(2 * Math.PI * f * t) * phase * 0.32;
+        }}
+      ];
+
+      specs.forEach((sp, i) => {
+        const buf = ctx.createBuffer(1, len, sr);
+        const ch = buf.getChannelData(0);
+        for (let n = 0; n < len; n++) ch[n] = sp.gen(n / sr);
+        this.stems[i].buffer = buf;
+        this.stems[i].name = sp.name;
+        this.stems[i].offlineEnv = null;
+      });
+      this.renderUI();
+      if (SK.transport.playing) this.syncTransport('play');
+      document.getElementById('pill-audio-tx').textContent = 'Audio: 8 Stems Active';
+      SK.toast('Loaded 8 Synthetic Stems (AS1–AS8) + 3-Band EQ (B1–B3)', 'ok');
+    },
+    syncTransport(action) {
+      if (!this.ctx) return;
+      this.ensureContext();
+      this.stems.forEach(s => {
+        if (s.sourceNode) {
+          try { s.sourceNode.stop(); s.sourceNode.disconnect(); } catch {}
+          s.sourceNode = null;
+        }
+      });
+      if (action === 'pause') return;
+      if (SK.transport.playing) {
+        const offset = SK.transport.time;
+        this.stems.forEach(s => {
+          if (!s.buffer) return;
+          const src = this.ctx.createBufferSource();
+          src.buffer = s.buffer;
+          src.loop = SK.transport.loop;
+          src.connect(s.gainNode);
+          const startPos = offset % s.buffer.duration;
+          src.start(0, startPos);
+          s.sourceNode = src;
+        });
+      }
+    },
+    prepareOfflineEnvelopes(totalFrames, fps) {
+      this.stems.forEach(s => {
+        if (!s.buffer) { s.offlineEnv = null; return; }
+        const env = new Float32Array(totalFrames);
+        const data = s.buffer.getChannelData(0);
+        const sr = s.buffer.sampleRate;
+        const winSamples = Math.max(64, Math.floor(sr / fps));
+        let cur = 0;
+        const attCoef = Math.exp(-1000 / (Math.max(1, s.attack) * fps));
+        const relCoef = Math.exp(-1000 / (Math.max(1, s.release) * fps));
+        for (let f = 0; f < totalFrames; f++) {
+          const t = f / fps;
+          const center = Math.floor((t % s.buffer.duration) * sr);
+          let sum = 0;
+          for (let k = 0; k < winSamples; k++) {
+            const v = data[(center + k) % data.length];
+            sum += v * v;
+          }
+          const rms = clamp(Math.sqrt(sum / winSamples) * 2.4 * s.gain, 0, 1);
+          const coef = rms > cur ? attCoef : relCoef;
+          cur = rms + coef * (cur - rms);
+          env[f] = cur;
+        }
+        s.offlineEnv = env;
+      });
+    },
+    update(dtMs, offlineFrame = null) {
+      if (offlineFrame !== null) {
+        this.stems.forEach(s => {
+          s.value = (s.offlineEnv && offlineFrame < s.offlineEnv.length) ? s.offlineEnv[offlineFrame] : 0;
+        });
+        this.bands[0].value = clamp((this.stems[0].value * 0.85 + this.stems[3].value * 0.65), 0, 1);
+        this.bands[1].value = clamp((this.stems[1].value * 0.75 + this.stems[4].value * 0.6 + this.stems[5].value * 0.55), 0, 1);
+        this.bands[2].value = clamp((this.stems[2].value * 0.9 + this.stems[7].value * 0.65), 0, 1);
+        return;
+      }
+      if (!this.ctx) return;
+
+      const calcRms = (analyser, buf) => {
+        analyser.getFloatTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+        return Math.sqrt(sum / buf.length);
+      };
+
+      const anySolo = this.stems.some(s => s.solo);
+      this.stems.forEach(s => {
+        const active = s.buffer && SK.transport.playing && (anySolo ? s.solo : !s.mute);
+        const raw = active ? clamp(calcRms(s.analyser, s.timeData) * 2.5, 0, 1) : 0;
+        const tau = raw > s.value ? Math.max(1, s.attack) : Math.max(1, s.release);
+        const alpha = 1 - Math.exp(-dtMs / tau);
+        s.value += (raw - s.value) * alpha;
+        const vu = document.getElementById('vu-' + s.id);
+        if (vu) vu.style.width = (s.value * 100).toFixed(1) + '%';
+      });
+
+      const bandAnalysers = [this.lowAnalyser, this.midAnalyser, this.highAnalyser];
+      const bandGains = [2.6, 3.4, 4.2];
+      this.bands.forEach((b, idx) => {
+        const an = bandAnalysers[idx];
+        const tmp = new Float32Array(an.fftSize);
+        const raw = SK.transport.playing ? clamp(calcRms(an, tmp) * bandGains[idx], 0, 1) : 0;
+        const tau = raw > b.value ? Math.max(1, b.attack) : Math.max(1, b.release);
+        const alpha = 1 - Math.exp(-dtMs / tau);
+        b.value += (raw - b.value) * alpha;
+        const vu = document.getElementById('vu-' + b.id);
+        if (vu) vu.style.width = (b.value * 100).toFixed(1) + '%';
+      });
+    },
+    buildPanel() {
+      const root = document.createElement('div');
+      root.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+      this._panelEl = root;
+      this.renderUI();
+      return root;
+    },
+    renderUI() {
+      const root = this._panelEl;
+      if (!root) return;
+      root.innerHTML = '';
+
+      const topCard = document.createElement('div');
+      topCard.className = 'card';
+      topCard.innerHTML = `
+        <div class="card-hdr">
+          <span>8-CHANNEL STEM DECK (AS1–AS8)</span>
+          <span class="mono" style="font-size:10px;color:var(--tx2)">Drop .wav/.mp3/.ogg</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="primary" id="btn-syn-stems" style="flex:1">⚡ Load Synthetic Drum/Bass Stems</button>
+          <button id="btn-clear-stems">Clear</button>
+        </div>
+      `;
+      topCard.querySelector('#btn-syn-stems').onclick = () => this.loadSyntheticStems();
+      topCard.querySelector('#btn-clear-stems').onclick = () => {
+        this.stems.forEach(s => { s.buffer = null; s.name = '(Drop audio or click to load)'; s.value = 0; });
+        this.syncTransport('pause');
+        this.renderUI();
+      };
+
+      const list = document.createElement('div');
+      list.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+
+      const hdrRow = document.createElement('div');
+      hdrRow.style.cssText = 'display:grid;grid-template-columns:34px 1fr 22px 22px 46px 44px;gap:4px;font-size:10px;color:var(--tx3);padding:0 5px';
+      hdrRow.innerHTML = '<span>ID</span><span>STEM / VU</span><span style="text-align:center">M</span><span style="text-align:center">S</span><span style="text-align:right">GAIN</span><span style="text-align:right">REL ms</span>';
+      list.appendChild(hdrRow);
+
+      this.stems.forEach((s, idx) => {
+        const row = document.createElement('div');
+        row.className = 'stem-row';
+        row.innerHTML = `
+          <div class="stem-id">${s.id}</div>
+          <div class="stem-info">
+            <div class="stem-name" title="Click to browse or drop audio file">${s.name}</div>
+            <div class="vu-bar"><div class="vu-fill" id="vu-${s.id}" style="width:${(s.value*100).toFixed(1)}%"></div></div>
+          </div>
+          <button class="ms-btn ${s.mute ? 'mute-on' : ''}" title="Mute">M</button>
+          <button class="ms-btn ${s.solo ? 'solo-on' : ''}" title="Solo">S</button>
+          <input class="mini-num" type="number" min="0" max="2" step="0.05" value="${s.gain}" title="Stem Gain">
+          <input class="mini-num" type="number" min="10" max="1000" step="10" value="${s.release}" title="Release Smoothing (ms)">
+        `;
+        const nameEl = row.querySelector('.stem-name');
+        nameEl.onclick = () => {
+          const inp = document.getElementById('hidden-file-input');
+          inp.accept = 'audio/*';
+          inp.onchange = (e) => { if (e.target.files[0]) this.loadStemFile(idx, e.target.files[0]); };
+          inp.click();
+        };
+        row.ondragover = (e) => { e.preventDefault(); row.classList.add('dragover'); };
+        row.ondragleave = () => row.classList.remove('dragover');
+        row.ondrop = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          row.classList.remove('dragover');
+          if (e.dataTransfer.files[0]) this.loadStemFile(idx, e.dataTransfer.files[0]);
+        };
+        const btns = row.querySelectorAll('.ms-btn');
+        btns[0].onclick = () => { s.mute = !s.mute; this.updateMuteSolo(); this.renderUI(); };
+        btns[1].onclick = () => { s.solo = !s.solo; this.updateMuteSolo(); this.renderUI(); };
+        const nums = row.querySelectorAll('.mini-num');
+        nums[0].onchange = () => { s.gain = clamp(parseFloat(nums[0].value) || 0, 0, 2); this.updateMuteSolo(); };
+        nums[1].onchange = () => { s.release = clamp(parseFloat(nums[1].value) || 50, 5, 2000); };
+        list.appendChild(row);
+      });
+      topCard.appendChild(list);
+      root.appendChild(topCard);
+
+      const eqCard = document.createElement('div');
+      eqCard.className = 'card';
+      eqCard.innerHTML = `
+        <div class="card-hdr">
+          <span>3-BAND EQ SPLITTER (B1 / B2 / B3)</span>
+          <select id="eq-tap-src" class="mod-sel" style="padding:1px 4px;font-size:11px">
+            <option value="master" ${this.splitterSource==='master'?'selected':''}>Tap: Master Mix</option>
+            ${this.stems.map(s => `<option value="${s.id}" ${this.splitterSource===s.id?'selected':''}>Tap: ${s.id}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
+          <div class="row-between"><span class="muted">Low/Mid Hz</span><input id="eq-lm" class="mini-num" style="width:60px" type="number" min="40" max="1200" step="10" value="${this.lowMidHz}"></div>
+          <div class="row-between"><span class="muted">Mid/High Hz</span><input id="eq-mh" class="mini-num" style="width:60px" type="number" min="500" max="12000" step="50" value="${this.midHighHz}"></div>
+        </div>
+        <div class="band-grid">
+          ${this.bands.map(b => `
+            <div class="band-card">
+              <div class="band-hdr"><span>${b.id}</span><span style="color:var(--tx2);font-weight:400">${b.name}</span></div>
+              <div class="vu-bar" style="height:7px"><div class="vu-fill" id="vu-${b.id}" style="width:${(b.value*100).toFixed(1)}%"></div></div>
+              <div class="row-between" style="font-size:10px;color:var(--tx3)"><span>Rel</span><span>${b.release}ms</span></div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      eqCard.querySelector('#eq-tap-src').onchange = (e) => { this.splitterSource = e.target.value; this.rerouteSplitter(); };
+      eqCard.querySelector('#eq-lm').onchange = (e) => { this.lowMidHz = parseFloat(e.target.value) || 250; this.updateCrossovers(); };
+      eqCard.querySelector('#eq-mh').onchange = (e) => { this.midHighHz = parseFloat(e.target.value) || 2500; this.updateCrossovers(); };
+      root.appendChild(eqCard);
+    }
+  };
+
+  /* ============================================================================
+   * 11. 16-CHANNEL MIDI ROUTER (M1–M16), NOTE RANGE C1–C6 & MIDI LEARN (SK.midi)
+   * ============================================================================ */
+  SK.midi = {
+    access: null,
+    inputs: [],
+    selectedPortId: 'all',
+    routingMode: 'hybrid',
+    learningPipeIndex: -1,
+    available: false,
+    pipes: Array.from({ length: 16 }, (_, i) => ({
+      id: 'M' + (i + 1),
+      index: i,
+      channel: i + 1,
+      learnedNote: null,
+      defaultNote: 36 + i,
+      responseMode: 'velocity',
+      releaseMs: 120,
+      gateOpen: false,
+      noteOnTime: 0,
+      lastVelocity: 0,
+      lastPitchNorm: 0,
+      value: 0
+    })),
+    async init() {
+      const pill = document.getElementById('pill-midi');
+      const pillTx = document.getElementById('pill-midi-tx');
+      if (!navigator.requestMIDIAccess) {
+        this.available = false;
+        pillTx.textContent = 'MIDI: Virtual Only';
+        this.renderUI();
+        return;
+      }
+      try {
+        this.access = await navigator.requestMIDIAccess({ sysex: false });
+        this.available = true;
+        this.refreshPorts();
+        this.access.onstatechange = () => this.refreshPorts();
+      } catch {
+        this.available = false;
+        pillTx.textContent = 'MIDI: Blocked / Virtual';
+        this.renderUI();
+      }
+    },
+    refreshPorts() {
+      if (!this.access) return;
+      this.inputs = Array.from(this.access.inputs.values());
+      this.inputs.forEach(inp => {
+        inp.onmidimessage = (msg) => this.handleMessage(msg.data, inp.id);
+      });
+      const pill = document.getElementById('pill-midi');
+      const pillTx = document.getElementById('pill-midi-tx');
+      if (this.inputs.length > 0) {
+        pill.classList.add('on');
+        const loopPort = this.inputs.find(p => /loopmidi|iac|reaper/i.test(p.name));
+        pillTx.textContent = `MIDI: ${loopPort ? loopPort.name : this.inputs[0].name}`;
+      } else {
+        pill.classList.remove('on');
+        pillTx.textContent = 'MIDI: 0 Ports (Virtual Ready)';
+      }
+      this.renderUI();
+    },
+    handleMessage(data, portId = 'virtual') {
+      if (this.selectedPortId !== 'all' && portId !== 'virtual' && portId !== this.selectedPortId) return;
+      const status = data[0];
+      const cmd = status & 0xf0;
+      const ch = (status & 0x0f) + 1;
+      const note = data[1];
+      const vel = data[2] || 0;
+      const now = performance.now();
+
+      const isNoteOn = (cmd === 0x90 && vel > 0);
+      const isNoteOff = (cmd === 0x80) || (cmd === 0x90 && vel === 0);
+
+      if (isNoteOn && this.learningPipeIndex >= 0) {
+        if (note >= 24 && note <= 84) {
+          const pipe = this.pipes[this.learningPipeIndex];
+          pipe.learnedNote = note;
+          pipe.channel = ch;
+          this.learningPipeIndex = -1;
+          SK.toast(`Learned ${pipe.id} → ${noteName(note)} (Ch ${ch})`, 'ok');
+          this.renderUI();
+        } else {
+          SK.toast(`Note ${noteName(note)} outside C1–C6 range`, 'warn');
+        }
+      }
+
+      if (!isNoteOn && !isNoteOff) return;
+
+      this.pipes.forEach(p => {
+        let matches = false;
+        if (this.routingMode === 'channel') matches = (p.channel === ch);
+        else if (this.routingMode === 'note') matches = (note === (p.learnedNote !== null ? p.learnedNote : p.defaultNote));
+        else matches = (p.learnedNote !== null) ? (note === p.learnedNote) : (p.channel === ch);
+
+        if (!matches) return;
+
+        if (isNoteOn) {
+          p.gateOpen = true;
+          p.noteOnTime = now;
+          p.lastVelocity = vel / 127;
+          p.lastPitchNorm = clamp((note - 24) / 60, 0, 1);
+          if (p.responseMode === 'velocity') p.value = p.lastVelocity;
+          else if (p.responseMode === 'gate') p.value = 1;
+          else if (p.responseMode === 'pitch') p.value = p.lastPitchNorm;
+        } else if (isNoteOff) {
+          p.gateOpen = false;
+        }
+      });
+    },
+    triggerVirtualNote(note, vel = 115, ch = 1, durationMs = 160) {
+      this.handleMessage([0x90 | ((ch - 1) & 0x0f), note, vel], 'virtual');
+      setTimeout(() => {
+        this.handleMessage([0x80 | ((ch - 1) & 0x0f), note, 0], 'virtual');
+      }, durationMs);
+    },
+    update(dtMs) {
+      const now = performance.now();
+      this.pipes.forEach(p => {
+        if (p.gateOpen) {
+          if (p.responseMode === 'gate') p.value = 1;
+          else if (p.responseMode === 'velocity') p.value = p.lastVelocity;
+          else if (p.responseMode === 'pitch') p.value = p.lastPitchNorm;
+          else if (p.responseMode === 'length') p.value = clamp((now - p.noteOnTime) / 600, 0, 1);
+        } else if (p.value > 0.0005) {
+          p.value *= Math.exp(-dtMs / Math.max(8, p.releaseMs));
+          if (p.value < 0.001) p.value = 0;
+        }
+        const vu = document.getElementById('vu-' + p.id);
+        if (vu) vu.style.width = (p.value * 100).toFixed(1) + '%';
+      });
+    },
+    buildPanel() {
+      const root = document.createElement('div');
+      root.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+      this._panelEl = root;
+      this.renderUI();
+      return root;
+    },
+    renderUI() {
+      const root = this._panelEl;
+      if (!root) return;
+      root.innerHTML = '';
+
+      const cfgCard = document.createElement('div');
+      cfgCard.className = 'card';
+      cfgCard.innerHTML = `
+        <div class="card-hdr">
+          <span>MIDI INPUT &amp; DAW ROUTING</span>
+          <span class="mono" style="font-size:10px;color:var(--ok)">${this.available ? this.inputs.length + ' Port(s)' : 'Virtual Mode'}</span>
+        </div>
+        <div class="row-between">
+          <span class="muted">Port</span>
+          <select id="midi-port-sel" class="mod-sel" style="flex:1;max-width:190px">
+            <option value="all" ${this.selectedPortId==='all'?'selected':''}>All MIDI Inputs (loopMIDI / HW)</option>
+            ${this.inputs.map(p => `<option value="${p.id}" ${this.selectedPortId===p.id?'selected':''}>${p.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="row-between">
+          <span class="muted">Routing</span>
+          <select id="midi-route-mode" class="mod-sel" style="flex:1;max-width:190px">
+            <option value="hybrid" ${this.routingMode==='hybrid'?'selected':''}>Hybrid (Ch 1–16 + Learned Notes)</option>
+            <option value="channel" ${this.routingMode==='channel'?'selected':''}>DAW Channel Mode (Ch 1–16)</option>
+            <option value="note" ${this.routingMode==='note'?'selected':''}>Note Range Mode (C1–C6)</option>
+          </select>
+        </div>
+        <div style="font-size:10.5px;color:var(--tx3)">
+          Reaper / DAW: Route MIDI Hardware Output → <span class="mono">loopMIDI Port</span> Ch 1–16, or click <strong>Learn</strong> and press any key (C1–C6).
+        </div>
+      `;
+      cfgCard.querySelector('#midi-port-sel').onchange = (e) => { this.selectedPortId = e.target.value; };
+      cfgCard.querySelector('#midi-route-mode').onchange = (e) => { this.routingMode = e.target.value; this.renderUI(); };
+      root.appendChild(cfgCard);
+
+      const padCard = document.createElement('div');
+      padCard.className = 'card';
+      padCard.innerHTML = `
+        <div class="card-hdr">
+          <span>VIRTUAL MIDI TEST PADS (C2–C3)</span>
+          <span class="mono" style="font-size:10px;color:var(--tx2)">Click / Learn</span>
+        </div>
+        <div class="pad-grid" id="v-midi-pads"></div>
+      `;
+      const padGrid = padCard.querySelector('#v-midi-pads');
+      [36, 38, 40, 41, 43, 45, 47, 48].forEach((n, idx) => {
+        const b = document.createElement('button');
+        b.className = 'pad-btn';
+        b.textContent = noteName(n);
+        b.title = `Send ${noteName(n)} (MIDI ${n}) on Ch ${idx + 1}`;
+        b.onmousedown = () => this.triggerVirtualNote(n, 118, idx + 1, 220);
+        padGrid.appendChild(b);
+      });
+      root.appendChild(padCard);
+
+      const pipesCard = document.createElement('div');
+      pipesCard.className = 'card';
+      pipesCard.innerHTML = `
+        <div class="card-hdr">
+          <span>MIDI PIPES (M1–M16)</span>
+          <button id="btn-clear-learns" style="padding:1px 6px;font-size:10px">Reset Learns</button>
+        </div>
+      `;
+      pipesCard.querySelector('#btn-clear-learns').onclick = () => {
+        this.pipes.forEach((p, idx) => { p.learnedNote = null; p.channel = idx + 1; });
+        this.learningPipeIndex = -1;
+        this.renderUI();
+        SK.toast('Cleared learned MIDI notes');
+      };
+
+      const list = document.createElement('div');
+      list.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+
+      this.pipes.forEach((p, idx) => {
+        const isLearning = (this.learningPipeIndex === idx);
+        const mapLabel = p.learnedNote !== null
+          ? `${noteName(p.learnedNote)}`
+          : (this.routingMode === 'note' ? noteName(p.defaultNote) : `Ch ${p.channel}`);
+
+        const row = document.createElement('div');
+        row.className = 'midi-pipe';
+        row.innerHTML = `
+          <div class="midi-id">${p.id}</div>
+          <div class="midi-map-badge" title="Channel ${p.channel}${p.learnedNote!==null?' · Note '+noteName(p.learnedNote):''}">${mapLabel}</div>
+          <div class="vu-bar"><div class="vu-fill" id="vu-${p.id}" style="width:${(p.value*100).toFixed(1)}%;background:linear-gradient(90deg,var(--ok),var(--acc))"></div></div>
+          <select class="midi-mode-sel" title="Signal Derivation Mode">
+            <option value="velocity" ${p.responseMode==='velocity'?'selected':''}>Velocity</option>
+            <option value="gate" ${p.responseMode==='gate'?'selected':''}>Gate</option>
+            <option value="length" ${p.responseMode==='length'?'selected':''}>Length</option>
+            <option value="pitch" ${p.responseMode==='pitch'?'selected':''}>Pitch C1–6</option>
+          </select>
+          <button class="learn-btn ${isLearning ? 'warn-pulse' : ''}">${isLearning ? 'Key…' : 'Learn'}</button>
+        `;
+        row.querySelector('.midi-mode-sel').onchange = (e) => { p.responseMode = e.target.value; };
+        row.querySelector('.learn-btn').onclick = () => {
+          this.learningPipeIndex = isLearning ? -1 : idx;
+          this.renderUI();
+          if (this.learningPipeIndex >= 0) SK.toast(`Listening for MIDI note (C1–C6) for ${p.id}…`, 'warn');
+        };
+        list.appendChild(row);
+      });
+      pipesCard.appendChild(list);
+      root.appendChild(pipesCard);
+    }
+  };
+
+  /* ============================================================================
+   * 12. UNIFIED MODULATION BUS (SK.mods): AS1–AS8, B1–B3, M1–M16, LFO1–LFO4
+   * ============================================================================ */
+  SK.mods = {
+    lfos: [
+      { id: 'LFO1', name: 'Sine 1/2 Bar', rateBeats: 2, shape: 'sine', value: 0 },
+      { id: 'LFO2', name: 'Triangle 1/4', rateBeats: 1, shape: 'tri', value: 0 },
+      { id: 'LFO3', name: 'Pulse 1/8', rateBeats: 0.5, shape: 'pulse', value: 0 },
+      { id: 'LFO4', name: 'Random S&H 1/4', rateBeats: 1, shape: 'noise', value: 0 }
+    ],
+    routes: {}, // prop -> { source, intensity, mult }
+    getSourceGroups() {
+      return [
+        { label: 'None', options: [{ id: '', text: '— None —' }] },
+        { label: 'Audio Stems (AS1–AS8)', options: SK.audioDeck.stems.map(s => ({ id: s.id, text: `${s.id} · ${s.name.slice(0, 18)}` })) },
+        { label: '3-Band EQ Splitter (B1–B3)', options: SK.audioDeck.bands.map(b => ({ id: b.id, text: `${b.id} · ${b.name} Band` })) },
+        { label: 'MIDI Pipes (M1–M16)', options: SK.midi.pipes.map(m => ({ id: m.id, text: `${m.id} · ${m.learnedNote !== null ? noteName(m.learnedNote) : 'Ch ' + m.channel} (${m.responseMode})` })) },
+        { label: 'Internal LFOs', options: this.lfos.map(l => ({ id: l.id, text: `${l.id} · ${l.name}` })) }
+      ];
+    },
+    getSignal(sourceId) {
+      if (!sourceId) return 0;
+      if (sourceId.startsWith('AS')) return SK.audioDeck.stems[parseInt(sourceId.slice(2), 10) - 1]?.value || 0;
+      if (sourceId.startsWith('B')) return SK.audioDeck.bands[parseInt(sourceId.slice(1), 10) - 1]?.value || 0;
+      if (sourceId.startsWith('M')) return SK.midi.pipes[parseInt(sourceId.slice(1), 10) - 1]?.value || 0;
+      if (sourceId.startsWith('LFO')) return this.lfos[parseInt(sourceId.slice(3), 10) - 1]?.value || 0;
+      return 0;
+    },
+    updateLFOs(timeSec, bpm) {
+      const beats = (timeSec * bpm) / 60;
+      this.lfos.forEach((l, i) => {
+        const phase = (beats / l.rateBeats) % 1;
+        if (l.shape === 'sine') l.value = 0.5 - 0.5 * Math.cos(phase * Math.PI * 2);
+        else if (l.shape === 'tri') l.value = phase < 0.5 ? phase * 2 : 2 - phase * 2;
+        else if (l.shape === 'pulse') l.value = phase < 0.35 ? 1 : 0;
+        else {
+          const step = Math.floor(beats / l.rateBeats) + i * 17;
+          l.value = Math.abs(Math.sin(step * 12.9898) * 43758.5453) % 1;
+        }
+      });
+    },
+    setRoute(prop, patch) {
+      const cur = this.routes[prop] || { source: '', intensity: 0.5, mult: 1 };
+      Object.assign(cur, patch);
+      if (!cur.source) delete this.routes[prop];
+      else this.routes[prop] = cur;
+      this.updateActiveCountHUD();
+    },
+    evaluate(prop, baseValue, min, max) {
+      const r = this.routes[prop];
+      if (!r || !r.source) return baseValue;
+      const sig = this.getSignal(r.source);
+      const span = max - min;
+      return clamp(baseValue + (sig * r.intensity * r.mult * span), min, max);
+    },
+    updateActiveCountHUD() {
+      const count = Object.keys(this.routes).length;
+      document.getElementById('hud-active-mods').textContent = `${count} Active Mod${count === 1 ? '' : 's'}`;
+    },
+    bakeToKeyframes() {
+      const routedProps = Object.keys(this.routes);
+      if (!routedProps.length) return SK.toast('Assign at least one modulator (~) before baking', 'warn');
+      SK.undo.push('Bake Mods to Keyframes');
+      const fps = SK.transport.fps;
+      const total = SK.transport.totalFrames;
+      SK.audioDeck.prepareOfflineEnvelopes(total, fps);
+      for (let f = 0; f <= total; f += 2) {
+        const t = f / fps;
+        SK.audioDeck.update(1000 / fps, f);
+        this.updateLFOs(t, SK.transport.bpm);
+        routedProps.forEach(prop => {
+          const meta = SK.params.meta[prop];
+          if (!meta || meta.type !== 'number') return;
+          const base = SK.anim.eval(prop, t, SK.params.values[prop]);
+          const eff = this.evaluate(prop, base, meta.min, meta.max);
+          SK.anim.setKey(prop, t, Number(eff.toFixed(4)), 'linear');
+        });
+      }
+      this.routes = {};
+      this.updateActiveCountHUD();
+      SK.params.refreshAll();
+      SK.toast(`Baked ${routedProps.length} modulated parameter(s) into keyframes`, 'ok');
+    }
+  };
+
+  /* ============================================================================
+   * 13. 5-MODE PROCEDURAL VISUAL GENERATOR SUITE (PART 2: DOMAIN ENGINES)
+   * ============================================================================ */
+  const STAGE_SCHEMA = [
+    { key: 'camZoom', label: 'Camera Zoom', type: 'number', min: 0.25, max: 4, step: 0.05, def: 1 },
+    { key: 'camPanX', label: 'Pan X', type: 'number', min: -600, max: 600, step: 1, def: 0 },
+    { key: 'camPanY', label: 'Pan Y', type: 'number', min: -600, max: 600, step: 1, def: 0 },
+    { key: 'showGuides', label: 'Grid Guides', type: 'number', min: 0, max: 1, step: 1, def: 1 },
+    {
+      key: 'blendMode', label: 'Blend Mode', type: 'select', def: 'lighter',
+      options: [
+        { value: 'lighter', label: 'Additive (Screen)' },
+        { value: 'source-over', label: 'Normal' },
+        { value: 'screen', label: 'Screen' }
+      ]
+    },
+    { key: 'bgColor', label: 'Backdrop Color', type: 'color', def: '#0b0d12' }
+  ];
+
+  const GENERATORS = {
+    /* ------------------------------------------------------------------------
+       GENERATOR 1: Harmonic Mandala & Orbital Field (vis_studio.html Engine)
+       ------------------------------------------------------------------------ */
+    mandala: {
+      id: 'mandala',
+      name: 'Gen 1 · Harmonic Mandala & Orbital Field',
+      short: 'Gen 1: Harmonic Mandala',
+      schema: [
+        { key: 'symmetry', label: 'Symmetry', type: 'number', min: 3, max: 24, step: 1, def: 8 },
+        { key: 'rings', label: 'Harmonic Rings', type: 'number', min: 1, max: 12, step: 1, def: 5 },
+        { key: 'radius', label: 'Orbit Radius', type: 'number', min: 40, max: 320, step: 1, def: 175 },
+        { key: 'petalAmp', label: 'Wave Amplitude', type: 'number', min: 0, max: 120, step: 0.5, def: 42 },
+        { key: 'particles', label: 'Orbital Nodes', type: 'number', min: 12, max: 240, step: 2, def: 84 },
+        { key: 'spinSpeed', label: 'Spin Rate', type: 'number', min: -4, max: 4, step: 0.05, def: 0.5 },
+        { key: 'pulseFreq', label: 'Harmonic Freq', type: 'number', min: 1, max: 12, step: 0.5, def: 3 },
+        { key: 'twist', label: 'Spiral Twist', type: 'number', min: -3, max: 3, step: 0.05, def: 0.65 },
+        { key: 'trail', label: 'Orbital Arc', type: 'number', min: 0.1, max: 1.0, step: 0.02, def: 0.45 },
+        { key: 'strokeWidth', label: 'Line Weight', type: 'number', min: 0.5, max: 6, step: 0.1, def: 1.6 },
+        { key: 'glow', label: 'Core Glow', type: 'number', min: 0, max: 36, step: 1, def: 14 },
+        { key: 'hueStart', label: 'Primary Hue', type: 'number', min: 0, max: 360, step: 1, def: 198 },
+        { key: 'hueSpread', label: 'Hue Spread', type: 'number', min: 0, max: 240, step: 1, def: 95 }
+      ],
+      presets: {
+        'Orbital Bloom': { symmetry: 8, rings: 5, radius: 175, petalAmp: 42, particles: 84, spinSpeed: 0.5, pulseFreq: 3, twist: 0.65, trail: 0.45, strokeWidth: 1.6, glow: 14, hueStart: 198, hueSpread: 95 },
+        'Harmonic Web': { symmetry: 12, rings: 8, radius: 210, petalAmp: 26, particles: 140, spinSpeed: 0.25, pulseFreq: 6, twist: 1.45, trail: 0.7, strokeWidth: 1.1, glow: 10, hueStart: 155, hueSpread: 70 },
+        'Cyber Kaleido': { symmetry: 6, rings: 7, radius: 190, petalAmp: 68, particles: 60, spinSpeed: -0.8, pulseFreq: 4, twist: -1.2, trail: 0.3, strokeWidth: 2.2, glow: 20, hueStart: 285, hueSpread: 120 },
+        'Particle Drift': { symmetry: 16, rings: 3, radius: 230, petalAmp: 18, particles: 220, spinSpeed: 0.35, pulseFreq: 2, twist: 0.2, trail: 0.85, strokeWidth: 1.2, glow: 8, hueStart: 32, hueSpread: 65 }
+      },
+      render(ctx, p, t, seed) {
+        const sym = Math.max(3, Math.round(p.symmetry));
+        const rings = Math.max(1, Math.round(p.rings));
+        const baseAngle = t * p.spinSpeed * Math.PI * 0.5;
+
+        for (let rIdx = 0; rIdx < rings; rIdx++) {
+          const frac = (rIdx + 1) / rings;
+          const ringRadius = p.radius * (0.28 + frac * 0.72);
+          const hue = (p.hueStart + frac * p.hueSpread + t * 18) % 360;
+          const ringRot = baseAngle * (rIdx % 2 === 0 ? 1 : -0.75) + frac * p.twist;
+
+          ctx.save();
+          ctx.rotate(ringRot);
+          ctx.strokeStyle = `hsla(${hue}, 82%, 62%, ${0.35 + (1 - frac) * 0.45})`;
+          ctx.lineWidth = p.strokeWidth * (1.25 - frac * 0.4);
+          if (p.glow > 0) {
+            ctx.shadowColor = `hsla(${hue}, 90%, 60%, 0.75)`;
+            ctx.shadowBlur = p.glow;
+          }
+
+          ctx.beginPath();
+          const steps = sym * 16;
+          for (let s = 0; s <= steps; s++) {
+            const theta = (s / steps) * Math.PI * 2;
+            const harmonic = Math.sin(theta * sym + t * p.pulseFreq * Math.PI)
+              * Math.cos(theta * Math.round(p.pulseFreq) - frac * Math.PI);
+            const rad = ringRadius + harmonic * p.petalAmp * (0.4 + frac * 0.6);
+            const x = Math.cos(theta) * rad;
+            const y = Math.sin(theta) * rad;
+            if (s === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.stroke();
+
+          for (let k = 0; k < sym; k++) {
+            const a = (k / sym) * Math.PI * 2;
+            const modR = ringRadius + Math.sin(a * sym + t * p.pulseFreq * Math.PI) * p.petalAmp * 0.6;
+            const vx = Math.cos(a) * modR;
+            const vy = Math.sin(a) * modR;
+            ctx.fillStyle = `hsla(${(hue + 30) % 360}, 90%, 72%, 0.9)`;
+            ctx.beginPath();
+            ctx.arc(vx, vy, 2.2 + p.strokeWidth * 0.7, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        const rand = mulberry32(seed);
+        const count = Math.round(p.particles);
+        for (let i = 0; i < count; i++) {
+          const orbitNorm = 0.2 + rand() * 0.95;
+          const startAng = rand() * Math.PI * 2;
+          const speedMul = (rand() > 0.5 ? 1 : -1) * (0.4 + rand() * 1.1);
+          const size = 1.4 + rand() * 2.8;
+          const hueOffset = rand() * p.hueSpread;
+
+          const orbR = p.radius * orbitNorm * 1.12;
+          const ang = startAng + t * p.spinSpeed * speedMul * 1.4;
+          const arcLen = p.trail * 0.45 * speedMul;
+          const hue = (p.hueStart + hueOffset) % 360;
+
+          ctx.strokeStyle = `hsla(${hue}, 88%, 66%, 0.45)`;
+          ctx.lineWidth = size * 0.7;
+          ctx.beginPath();
+          ctx.arc(0, 0, orbR, ang - arcLen, ang, arcLen < 0);
+          ctx.stroke();
+
+          const px = Math.cos(ang) * orbR;
+          const py = Math.sin(ang) * orbR;
+          ctx.fillStyle = `hsla(${hue}, 95%, 76%, 0.95)`;
+          ctx.beginPath();
+          ctx.arc(px, py, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    },
+
+    /* ------------------------------------------------------------------------
+       GENERATOR 2: 3D Wireframe Terrain & Audio Mesh
+       ------------------------------------------------------------------------ */
+    terrain: {
+      id: 'terrain',
+      name: 'Gen 2 · 3D Wireframe Terrain & Audio Mesh',
+      short: 'Gen 2: 3D Terrain Mesh',
+      schema: [
+        { key: 'gridCols', label: 'Grid Columns', type: 'number', min: 16, max: 72, step: 2, def: 44 },
+        { key: 'gridRows', label: 'Grid Rows', type: 'number', min: 12, max: 60, step: 2, def: 32 },
+        { key: 'elevAmp', label: 'Peak Elevation', type: 'number', min: 0, max: 240, step: 1, def: 96 },
+        { key: 'ridgeFreq', label: 'Ridge Frequency', type: 'number', min: 0.4, max: 6, step: 0.1, def: 2.1 },
+        { key: 'scrollSpeed', label: 'Flight Speed', type: 'number', min: -5, max: 5, step: 0.1, def: 1.4 },
+        { key: 'camPitch', label: 'Camera Pitch °', type: 'number', min: 8, max: 75, step: 1, def: 32 },
+        { key: 'camYaw', label: 'Camera Yaw °', type: 'number', min: -60, max: 60, step: 1, def: 0 },
+        { key: 'fov', label: 'Perspective FOV', type: 'number', min: 220, max: 900, step: 10, def: 460 },
+        { key: 'valleyWidth', label: 'Canyon Valley', type: 'number', min: 0, max: 1, step: 0.02, def: 0.35 },
+        { key: 'nodeDots', label: 'Vertex Nodes', type: 'number', min: 0, max: 4, step: 0.2, def: 1.4 },
+        { key: 'strokeWidth', label: 'Mesh Weight', type: 'number', min: 0.5, max: 4, step: 0.1, def: 1.3 },
+        { key: 'hueStart', label: 'Terrain Hue', type: 'number', min: 0, max: 360, step: 1, def: 192 },
+        { key: 'hueSpread', label: 'Altitude Hue', type: 'number', min: 0, max: 240, step: 1, def: 85 }
+      ],
+      presets: {
+        'Synthwave Canyon': { gridCols: 44, gridRows: 32, elevAmp: 110, ridgeFreq: 2.1, scrollSpeed: 1.5, camPitch: 28, camYaw: 0, fov: 460, valleyWidth: 0.48, nodeDots: 1.2, strokeWidth: 1.4, hueStart: 295, hueSpread: 95 },
+        'Alpine Radar': { gridCols: 54, gridRows: 38, elevAmp: 135, ridgeFreq: 3.2, scrollSpeed: 0.8, camPitch: 38, camYaw: 16, fov: 500, valleyWidth: 0.1, nodeDots: 1.8, strokeWidth: 1.1, hueStart: 165, hueSpread: 60 },
+        'Sub-Bass Sea': { gridCols: 40, gridRows: 28, elevAmp: 75, ridgeFreq: 1.4, scrollSpeed: 2.2, camPitch: 22, camYaw: -10, fov: 420, valleyWidth: 0.0, nodeDots: 0.0, strokeWidth: 1.6, hueStart: 205, hueSpread: 45 },
+        'Monolith Dunes': { gridCols: 36, gridRows: 26, elevAmp: 150, ridgeFreq: 1.7, scrollSpeed: 0.6, camPitch: 45, camYaw: 24, fov: 540, valleyWidth: 0.25, nodeDots: 2.4, strokeWidth: 1.2, hueStart: 28, hueSpread: 55 }
+      },
+      render(ctx, p, t, seed) {
+        const cols = Math.round(p.gridCols);
+        const rows = Math.round(p.gridRows);
+        const pitch = (p.camPitch * Math.PI) / 180;
+        const yaw = (p.camYaw * Math.PI) / 180;
+        const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
+        const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+        const phaseOffset = ((seed % 997) * 0.013);
+
+        // Deterministic multi-octave ridge height function
+        const sampleHeight = (nx, nz) => {
+          const zScroll = nz - t * p.scrollSpeed * 0.45 + phaseOffset;
+          const w1 = Math.sin(nx * p.ridgeFreq * Math.PI + Math.cos(zScroll * p.ridgeFreq * 1.4));
+          const w2 = Math.cos((nx * 1.9 - zScroll * 2.3) * p.ridgeFreq * Math.PI) * 0.5;
+          const ridge = 1 - Math.abs(w1 * 0.65 + w2 * 0.35);
+          const valleyMask = lerp(1, clamp(Math.pow(Math.abs(nx) * 1.45, 1.8), 0.05, 1.3), p.valleyWidth);
+          return (ridge * ridge * 1.25 - 0.2) * valleyMask;
+        };
+
+        const projGrid = Array.from({ length: rows }, () => new Array(cols));
+        const spanW = 760;
+        const spanD = 680;
+
+        for (let r = 0; r < rows; r++) {
+          const v = r / (rows - 1); // 0 = far horizon, 1 = near camera
+          const zWorld = (0.5 - v) * spanD;
+          for (let c = 0; c < cols; c++) {
+            const u = c / (cols - 1);
+            const nx = (u - 0.5) * 2;
+            const xWorld = nx * (spanW * 0.5);
+            const hNorm = sampleHeight(nx, v * 2.2);
+            const yWorld = -hNorm * p.elevAmp;
+
+            // Rotate Yaw then Pitch
+            const rx = xWorld * cosY - zWorld * sinY;
+            const rz = xWorld * sinY + zWorld * cosY;
+            const ry = yWorld * cosP - rz * sinP;
+            const rz2 = yWorld * sinP + rz * cosP + 460;
+
+            const depth = Math.max(60, rz2);
+            const persp = p.fov / depth;
+            projGrid[r][c] = {
+              sx: rx * persp,
+              sy: ry * persp + 45,
+              hNorm,
+              fog: clamp(v * 1.15, 0.06, 0.95)
+            };
+          }
+        }
+
+        // Draw Horizon Glow Line
+        const horY = projGrid[0][Math.floor(cols / 2)].sy - 12;
+        const grad = ctx.createLinearGradient(-420, horY, 420, horY);
+        grad.addColorStop(0, 'transparent');
+        grad.addColorStop(0.5, `hsla(${p.hueStart}, 90%, 62%, 0.45)`);
+        grad.addColorStop(1, 'transparent');
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-420, horY);
+        ctx.lineTo(420, horY);
+        ctx.stroke();
+
+        // Draw Transverse Scanlines (Rows)
+        ctx.lineWidth = p.strokeWidth;
+        for (let r = 0; r < rows; r++) {
+          const row = projGrid[r];
+          const midH = row[Math.floor(cols * 0.5)].hNorm;
+          const hue = (p.hueStart + clamp(midH, 0, 1) * p.hueSpread) % 360;
+          ctx.strokeStyle = `hsla(${hue}, 84%, 62%, ${row[0].fog * 0.85})`;
+          ctx.beginPath();
+          for (let c = 0; c < cols; c++) {
+            const pt = row[c];
+            if (c === 0) ctx.moveTo(pt.sx, pt.sy);
+            else ctx.lineTo(pt.sx, pt.sy);
+          }
+          ctx.stroke();
+        }
+
+        // Draw Longitudinal Meridian Lines (Columns)
+        for (let c = 0; c < cols; c += 2) {
+          ctx.strokeStyle = `hsla(${(p.hueStart + 25) % 360}, 78%, 58%, 0.24)`;
+          ctx.beginPath();
+          for (let r = 0; r < rows; r++) {
+            const pt = projGrid[r][c];
+            if (r === 0) ctx.moveTo(pt.sx, pt.sy);
+            else ctx.lineTo(pt.sx, pt.sy);
+          }
+          ctx.stroke();
+        }
+
+        // Optional Peak Vertex Nodes
+        if (p.nodeDots > 0.1) {
+          for (let r = 1; r < rows; r += 2) {
+            for (let c = 1; c < cols; c += 2) {
+              const pt = projGrid[r][c];
+              if (pt.hNorm < 0.25) continue;
+              const hue = (p.hueStart + pt.hNorm * p.hueSpread) % 360;
+              ctx.fillStyle = `hsla(${hue}, 95%, 74%, ${pt.fog})`;
+              ctx.beginPath();
+              ctx.arc(pt.sx, pt.sy, p.nodeDots * pt.fog, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
+      }
+    },
+
+    /* ------------------------------------------------------------------------
+       GENERATOR 3: Curl-Noise Particle Flow Field
+       ------------------------------------------------------------------------ */
+    flowfield: {
+      id: 'flowfield',
+      name: 'Gen 3 · Curl-Noise Particle Flow Field',
+      short: 'Gen 3: Curl Flow Field',
+      schema: [
+        { key: 'agentCount', label: 'Flow Agents', type: 'number', min: 40, max: 360, step: 4, def: 190 },
+        { key: 'curlScale', label: 'Curl Frequency', type: 'number', min: 0.4, max: 5, step: 0.1, def: 1.7 },
+        { key: 'flowSpeed', label: 'Advection Speed', type: 'number', min: 0, max: 4, step: 0.05, def: 1.25 },
+        { key: 'ribbonSteps', label: 'Ribbon Length', type: 'number', min: 4, max: 28, step: 1, def: 14 },
+        { key: 'stepSize', label: 'Step Stride', type: 'number', min: 2, max: 14, step: 0.5, def: 6.5 },
+        { key: 'vortexPull', label: 'Vortex Swirl', type: 'number', min: -2, max: 2, step: 0.05, def: 0.45 },
+        { key: 'fieldBounds', label: 'Field Radius', type: 'number', min: 140, max: 360, step: 5, def: 290 },
+        { key: 'turbulence', label: 'Harmonic Curl', type: 'number', min: 0, max: 2, step: 0.05, def: 0.75 },
+        { key: 'strokeWidth', label: 'Ribbon Width', type: 'number', min: 0.5, max: 5, step: 0.1, def: 1.7 },
+        { key: 'hueStart', label: 'Stream Hue', type: 'number', min: 0, max: 360, step: 1, def: 175 },
+        { key: 'hueSpread', label: 'Velocity Hue', type: 'number', min: 0, max: 240, step: 1, def: 110 }
+      ],
+      presets: {
+        'Solar Plasma': { agentCount: 210, curlScale: 1.8, flowSpeed: 1.35, ribbonSteps: 16, stepSize: 6.5, vortexPull: 0.55, fieldBounds: 290, turbulence: 0.85, strokeWidth: 1.7, hueStart: 18, hueSpread: 75 },
+        'Abyssal Current': { agentCount: 240, curlScale: 1.2, flowSpeed: 0.95, ribbonSteps: 20, stepSize: 7.0, vortexPull: 0.25, fieldBounds: 320, turbulence: 0.5, strokeWidth: 1.5, hueStart: 185, hueSpread: 90 },
+        'Magnetic Vortex': { agentCount: 160, curlScale: 2.6, flowSpeed: 1.6, ribbonSteps: 14, stepSize: 6.0, vortexPull: 1.45, fieldBounds: 270, turbulence: 1.1, strokeWidth: 2.0, hueStart: 265, hueSpread: 125 },
+        'Silk Filaments': { agentCount: 280, curlScale: 0.9, flowSpeed: 0.7, ribbonSteps: 22, stepSize: 5.5, vortexPull: -0.3, fieldBounds: 330, turbulence: 0.4, strokeWidth: 1.0, hueStart: 135, hueSpread: 140 }
+      },
+      render(ctx, p, t, seed) {
+        const rand = mulberry32(seed);
+        const count = Math.round(p.agentCount);
+        const steps = Math.round(p.ribbonSteps);
+        const scale = p.curlScale * 0.0085;
+        const phase = t * p.flowSpeed;
+
+        // Smooth analytical 2D potential & finite-difference curl (divergence-free)
+        const potential = (x, y) => {
+          const sx = x * scale;
+          const sy = y * scale;
+          const p1 = Math.sin(sx * 1.7 + phase) * Math.cos(sy * 1.7 - phase * 0.7);
+          const p2 = Math.sin((sx + sy) * 2.4 - phase * 0.9) * p.turbulence * 0.55;
+          const r2 = (x * x + y * y) * 0.000018;
+          return p1 + p2 + r2 * p.vortexPull * 4.5;
+        };
+
+        const eps = 2.0;
+        ctx.lineCap = 'round';
+        for (let i = 0; i < count; i++) {
+          const ang0 = rand() * Math.PI * 2;
+          const rad0 = Math.sqrt(rand()) * p.fieldBounds;
+          const driftAng = ang0 + t * p.flowSpeed * 0.18 * (rand() > 0.5 ? 1 : -1);
+          let x = Math.cos(driftAng) * rad0;
+          let y = Math.sin(driftAng) * rad0;
+          const hueBase = (p.hueStart + rand() * p.hueSpread) % 360;
+
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          let lastVx = 0, lastVy = 0;
+
+          for (let s = 0; s < steps; s++) {
+            const dPsiDy = (potential(x, y + eps) - potential(x, y - eps)) / (2 * eps);
+            const dPsiDx = (potential(x + eps, y) - potential(x - eps, y)) / (2 * eps);
+            // Curl of scalar stream function Psi: vx = dPsi/dy, vy = -dPsi/dx
+            const mag = Math.hypot(dPsiDy, dPsiDx) || 1;
+            const vx = (dPsiDy / mag) * p.stepSize;
+            const vy = (-dPsiDx / mag) * p.stepSize;
+            x += vx;
+            y += vy;
+            lastVx = vx;
+            lastVy = vy;
+            ctx.lineTo(x, y);
+          }
+
+          const velAngle = Math.atan2(lastVy, lastVx);
+          const hue = (hueBase + (velAngle / Math.PI) * 35 + 360) % 360;
+          ctx.strokeStyle = `hsla(${hue}, 86%, 64%, 0.55)`;
+          ctx.lineWidth = p.strokeWidth;
+          ctx.stroke();
+
+          // Bright head spark
+          ctx.fillStyle = `hsla(${(hue + 20) % 360}, 95%, 78%, 0.9)`;
+          ctx.beginPath();
+          ctx.arc(x, y, p.strokeWidth * 0.95, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    },
+
+    /* ------------------------------------------------------------------------
+       GENERATOR 4: Kaleidoscopic Sacred Spirograph
+       ------------------------------------------------------------------------ */
+    spirograph: {
+      id: 'spirograph',
+      name: 'Gen 4 · Kaleidoscopic Sacred Spirograph',
+      short: 'Gen 4: Sacred Spirograph',
+      schema: [
+        { key: 'outerR', label: 'Outer Stator R', type: 'number', min: 60, max: 260, step: 1, def: 165 },
+        { key: 'innerR', label: 'Inner Rotor r', type: 'number', min: 12, max: 180, step: 1, def: 63 },
+        { key: 'penDist', label: 'Pen Offset d', type: 'number', min: 10, max: 220, step: 1, def: 112 },
+        { key: 'kaleidoSectors', label: 'Kaleido Sectors', type: 'number', min: 1, max: 12, step: 1, def: 4 },
+        { key: 'echoLayers', label: 'Ribbon Echoes', type: 'number', min: 1, max: 8, step: 1, def: 4 },
+        { key: 'echoSpread', label: 'Echo Phase Lag', type: 'number', min: 0.02, max: 0.5, step: 0.01, def: 0.12 },
+        { key: 'harmonicWave', label: 'Harmonic Ripple', type: 'number', min: 0, max: 45, step: 0.5, def: 14 },
+        { key: 'turns', label: 'Curve Cycles', type: 'number', min: 2, max: 18, step: 1, def: 9 },
+        { key: 'rotSpeed', label: 'Mandala Spin', type: 'number', min: -3, max: 3, step: 0.05, def: 0.35 },
+        { key: 'strokeWidth', label: 'Trace Weight', type: 'number', min: 0.5, max: 5, step: 0.1, def: 1.4 },
+        { key: 'hueStart', label: 'Primary Hue', type: 'number', min: 0, max: 360, step: 1, def: 42 },
+        { key: 'hueSpread', label: 'Echo Hue Shift', type: 'number', min: 0, max: 240, step: 1, def: 130 }
+      ],
+      presets: {
+        'Golden Lotus': { outerR: 165, innerR: 63, penDist: 112, kaleidoSectors: 4, echoLayers: 4, echoSpread: 0.12, harmonicWave: 14, turns: 9, rotSpeed: 0.35, strokeWidth: 1.4, hueStart: 42, hueSpread: 130 },
+        'Hypotrochoid Star': { outerR: 190, innerR: 76, penDist: 135, kaleidoSectors: 5, echoLayers: 5, echoSpread: 0.08, harmonicWave: 6, turns: 8, rotSpeed: -0.45, strokeWidth: 1.2, hueStart: 195, hueSpread: 90 },
+        'Quantum Rose': { outerR: 150, innerR: 48, penDist: 148, kaleidoSectors: 6, echoLayers: 3, echoSpread: 0.18, harmonicWave: 24, turns: 11, rotSpeed: 0.6, strokeWidth: 1.6, hueStart: 315, hueSpread: 110 },
+        'Astrolabe Ring': { outerR: 210, innerR: 105, penDist: 85, kaleidoSectors: 8, echoLayers: 6, echoSpread: 0.06, harmonicWave: 4, turns: 6, rotSpeed: 0.2, strokeWidth: 1.1, hueStart: 160, hueSpread: 75 }
+      },
+      render(ctx, p, t) {
+        const sectors = Math.max(1, Math.round(p.kaleidoSectors));
+        const echoes = Math.max(1, Math.round(p.echoLayers));
+        const R = p.outerR;
+        const r = Math.max(4, p.innerR);
+        const d = p.penDist;
+        const diff = R - r;
+        const ratio = diff / r;
+        const maxTheta = Math.PI * 2 * Math.round(p.turns);
+        const steps = 420;
+
+        for (let s = 0; s < sectors; s++) {
+          const secAngle = (s / sectors) * Math.PI * 2 + t * p.rotSpeed;
+          ctx.save();
+          ctx.rotate(secAngle);
+          if (s % 2 === 1) ctx.scale(1, -1);
+
+          for (let e = 0; e < echoes; e++) {
+            const eFrac = e / echoes;
+            const phase = t * 0.9 - e * p.echoSpread;
+            const hue = (p.hueStart + eFrac * p.hueSpread + s * 12) % 360;
+            ctx.strokeStyle = `hsla(${hue}, 86%, 64%, ${0.65 - eFrac * 0.42})`;
+            ctx.lineWidth = p.strokeWidth * (1.15 - eFrac * 0.35);
+
+            ctx.beginPath();
+            for (let i = 0; i <= steps; i++) {
+              const th = (i / steps) * maxTheta;
+              const modD = d + Math.sin(th * 3 + phase * 2.5) * p.harmonicWave;
+              const x = diff * Math.cos(th + phase * 0.3) + modD * Math.cos(ratio * th - phase);
+              const y = diff * Math.sin(th + phase * 0.3) - modD * Math.sin(ratio * th - phase);
+              if (i === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+    },
+
+    /* ------------------------------------------------------------------------
+       GENERATOR 5: Vector Oscilloscope & Glitch Matrix
+       ------------------------------------------------------------------------ */
+    oscilloscope: {
+      id: 'oscilloscope',
+      name: 'Gen 5 · Vector Oscilloscope & Glitch Matrix',
+      short: 'Gen 5: Vector Scope & Glitch',
+      schema: [
+        { key: 'freqX', label: 'X Harmonic Ratio', type: 'number', min: 1, max: 12, step: 0.5, def: 3 },
+        { key: 'freqY', label: 'Y Harmonic Ratio', type: 'number', min: 1, max: 12, step: 0.5, def: 4 },
+        { key: 'phaseDrift', label: 'XY Phase Shift', type: 'number', min: 0, max: 6.28, step: 0.05, def: 1.57 },
+        { key: 'scopeScale', label: 'Beam Amplitude', type: 'number', min: 60, max: 300, step: 1, def: 215 },
+        { key: 'fmMod', label: 'FM Harmonic Fold', type: 'number', min: 0, max: 1.5, step: 0.02, def: 0.35 },
+        { key: 'rgbSplit', label: 'Chromatic Split', type: 'number', min: 0, max: 45, step: 0.5, def: 11 },
+        { key: 'glitchSlices', label: 'Glitch Scan Slices', type: 'number', min: 0, max: 24, step: 1, def: 7 },
+        { key: 'glitchAmp', label: 'Glitch Shear', type: 'number', min: 0, max: 90, step: 1, def: 22 },
+        { key: 'bitCrush', label: 'Grid Quantize', type: 'number', min: 0, max: 24, step: 1, def: 0 },
+        { key: 'beamWidth', label: 'Phosphor Width', type: 'number', min: 0.8, max: 6, step: 0.1, def: 2.2 },
+        { key: 'hueStart', label: 'Phosphor Hue', type: 'number', min: 0, max: 360, step: 1, def: 145 }
+      ],
+      presets: {
+        'CRT Lissajous': { freqX: 3, freqY: 4, phaseDrift: 1.57, scopeScale: 215, fmMod: 0.35, rgbSplit: 11, glitchSlices: 7, glitchAmp: 22, bitCrush: 0, beamWidth: 2.2, hueStart: 145 },
+        'Chromatic Tear': { freqX: 5, freqY: 6, phaseDrift: 0.8, scopeScale: 235, fmMod: 0.75, rgbSplit: 28, glitchSlices: 16, glitchAmp: 58, bitCrush: 6, beamWidth: 2.6, hueStart: 190 },
+        '8-Bit Vector': { freqX: 2, freqY: 3, phaseDrift: 1.1, scopeScale: 205, fmMod: 0.5, rgbSplit: 14, glitchSlices: 10, glitchAmp: 34, bitCrush: 14, beamWidth: 2.4, hueStart: 48 },
+        'Pure Analog Beam': { freqX: 4, freqY: 5, phaseDrift: 2.1, scopeScale: 225, fmMod: 0.15, rgbSplit: 3, glitchSlices: 0, glitchAmp: 0, bitCrush: 0, beamWidth: 2.0, hueStart: 132 }
+      },
+      render(ctx, p, t, seed) {
+        const samples = 520;
+        const S = p.scopeScale;
+        const quant = Math.round(p.bitCrush);
+
+        // Compute base Lissajous + FM folded XY trace
+        const pts = new Array(samples);
+        for (let i = 0; i < samples; i++) {
+          const u = (i / (samples - 1)) * Math.PI * 2;
+          const fm = Math.sin(u * 7 - t * 3.2) * p.fmMod;
+          let x = Math.sin(u * p.freqX + t * 1.3 + fm) * S;
+          let y = Math.sin(u * p.freqY + p.phaseDrift - t * 0.9 + fm * 0.8) * S;
+          if (quant >= 2) {
+            const step = (S * 2) / quant;
+            x = Math.round(x / step) * step;
+            y = Math.round(y / step) * step;
+          }
+          pts[i] = { x, y };
+        }
+
+        // Draw CRT Graticule Crosshair
+        ctx.save();
+        ctx.strokeStyle = `hsla(${p.hueStart}, 60%, 50%, 0.15)`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-S * 1.15, -S * 1.15, S * 2.3, S * 2.3);
+        ctx.restore();
+
+        // Render 3 Chromatic Channels (R, G, B / Hue-shifted beams)
+        const channels = [
+          { dx: -p.rgbSplit, dy: -p.rgbSplit * 0.25, hue: (p.hueStart - 135 + 360) % 360, alpha: 0.72 },
+          { dx: 0, dy: 0, hue: p.hueStart % 360, alpha: 0.92 },
+          { dx: p.rgbSplit, dy: p.rgbSplit * 0.25, hue: (p.hueStart + 75) % 360, alpha: 0.72 }
+        ];
+
+        channels.forEach(ch => {
+          ctx.strokeStyle = `hsla(${ch.hue}, 92%, 64%, ${ch.alpha})`;
+          ctx.lineWidth = p.beamWidth;
+          ctx.beginPath();
+          for (let i = 0; i < samples; i++) {
+            const px = pts[i].x + ch.dx;
+            const py = pts[i].y + ch.dy;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        });
+
+        // Horizontal Glitch Scanline Displacement Bars
+        const slices = Math.round(p.glitchSlices);
+        if (slices > 0 && p.glitchAmp > 0.5) {
+          const rand = mulberry32(seed + Math.floor(t * 24));
+          for (let g = 0; g < slices; g++) {
+            const gy = (rand() * 2 - 1) * S * 1.1;
+            const gh = 3 + rand() * 14;
+            const shift = (rand() * 2 - 1) * p.glitchAmp;
+            const hue = (p.hueStart + (rand() > 0.5 ? 60 : -120) + 360) % 360;
+            ctx.fillStyle = `hsla(${hue}, 95%, 65%, 0.24)`;
+            ctx.fillRect(-S * 1.1 + shift, gy, S * 2.2, gh);
+          }
+        }
+      }
+    }
+  };
+
+  /* ============================================================================
+   * 14. PARAMETER SCHEMA AUTO-UI WITH GENERATOR SWITCHER & MOD POPOVER (SK.params)
+   * ============================================================================ */
+  const STATE = {
+    generator: 'mandala',
+    seed: 4096,
+    values: {}
+  };
+
+  // Initialize default values for all 5 generators + stage parameters
+  function populateAllDefaults() {
+    STAGE_SCHEMA.forEach(d => { STATE.values[d.key] = d.def; });
+    Object.values(GENERATORS).forEach(gen => {
+      gen.schema.forEach(d => { STATE.values[d.key] = d.def; });
+    });
+  }
+  populateAllDefaults();
+
+  SK.params = {
+    meta: {},
+    values: STATE.values,
+    effective: {},
+    rows: {},
+    focusedProp: 'symmetry',
+    openDrawerProp: null,
+    panelRoot: null,
+
+    buildPanel() {
+      const root = document.createElement('div');
+      root.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+      this.panelRoot = root;
+      this.rebuildUI();
+      return root;
+    },
+
+    rebuildUI() {
+      const root = this.panelRoot;
+      if (!root) return;
+      root.innerHTML = '';
+      this.rows = {};
+      this.meta = {};
+
+      // Register all schema items across all 5 generators so keyframe/mod evaluation works globally
+      STAGE_SCHEMA.forEach(d => { this.meta[d.key] = d; });
+      Object.values(GENERATORS).forEach(g => g.schema.forEach(d => { this.meta[d.key] = d; }));
+
+      const activeGen = GENERATORS[STATE.generator] || GENERATORS.mandala;
+      document.getElementById('hud-gen').textContent = activeGen.short;
+
+      // Top Generator Switcher & Quick Presets Box
+      const genBox = document.createElement('div');
+      genBox.className = 'gen-select-box';
+      genBox.innerHTML = `
+        <div class="row-between">
+          <span style="font-size:11px;font-weight:600;color:var(--acc);letter-spacing:.04em">VISUAL GENERATOR ENGINE</span>
+          <span class="mono muted" style="font-size:10px">Seed ${STATE.seed}</span>
+        </div>
+        <select class="gen-select-main" id="sel-active-gen">
+          ${Object.values(GENERATORS).map(g => `<option value="${g.id}" ${g.id===STATE.generator?'selected':''}>${g.name}</option>`).join('')}
+        </select>
+        <div class="preset-grid" id="gen-preset-grid"></div>
+      `;
+      genBox.querySelector('#sel-active-gen').onchange = (e) => {
+        this.switchGenerator(e.target.value);
+      };
+
+      const pGrid = genBox.querySelector('#gen-preset-grid');
+      Object.entries(activeGen.presets).forEach(([pName, pVals]) => {
+        const b = document.createElement('button');
+        b.className = 'preset-btn';
+        b.textContent = pName;
+        b.onclick = () => {
+          SK.undo.push(`Preset: ${pName}`);
+          Object.assign(STATE.values, pVals);
+          this.refreshAll();
+          SK.toast(`Applied ${pName}`, 'ok');
+        };
+        pGrid.appendChild(b);
+      });
+      root.appendChild(genBox);
+
+      // Render Active Generator Parameters Card
+      this.renderSection(root, activeGen.short.toUpperCase() + ' PARAMETERS', activeGen.schema);
+
+      // Render Common Stage, Camera & Backdrop Card
+      this.renderSection(root, 'STAGE, CAMERA & BACKDROP', STAGE_SCHEMA);
+    },
+
+    switchGenerator(genId) {
+      if (!GENERATORS[genId]) return;
+      SK.undo.push('Switch Generator');
+      STATE.generator = genId;
+      this.openDrawerProp = null;
+      const firstNum = GENERATORS[genId].schema.find(d => d.type === 'number');
+      if (firstNum) this.focusedProp = firstNum.key;
+      this.rebuildUI();
+      SK.toast(`Switched to ${GENERATORS[genId].name}`);
+    },
+
+    renderSection(parent, title, items) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `<div class="card-hdr"><span>${title}</span></div>`;
+
+      items.forEach(def => {
+        this.effective[def.key] = this.values[def.key];
+
+        if (def.type === 'color') {
+          const row = document.createElement('div');
+          row.className = 'row-between';
+          row.style.padding = '2px 4px';
+          row.innerHTML = `<span class="param-lbl">${def.label}</span>`;
+          const inp = document.createElement('input');
+          inp.type = 'color';
+          inp.value = this.values[def.key];
+          inp.style.cssText = 'width:52px;height:22px;border:1px solid var(--line);background:var(--bg3);border-radius:4px;cursor:pointer';
+          inp.oninput = () => { this.values[def.key] = inp.value; };
+          inp.onchange = () => SK.undo.push('Change ' + def.label);
+          row.appendChild(inp);
+          this.rows[def.key] = { type: 'color', inp };
+          card.appendChild(row);
+          return;
+        }
+
+        if (def.type === 'select') {
+          const row = document.createElement('div');
+          row.className = 'row-between';
+          row.style.padding = '2px 4px';
+          row.innerHTML = `<span class="param-lbl">${def.label}</span>`;
+          const sel = document.createElement('select');
+          sel.className = 'mod-sel';
+          sel.style.width = '148px';
+          def.options.forEach(opt => {
+            const o = document.createElement('option');
+            o.value = opt.value;
+            o.textContent = opt.label;
+            sel.appendChild(o);
+          });
+          sel.value = this.values[def.key];
+          sel.onchange = () => {
+            this.values[def.key] = sel.value;
+            SK.undo.push('Select ' + def.label);
+          };
+          row.appendChild(sel);
+          this.rows[def.key] = { type: 'select', sel };
+          card.appendChild(row);
+          return;
+        }
+
+        const row = document.createElement('div');
+        row.className = 'param-row' + (this.focusedProp === def.key ? ' focused' : '');
+        row.innerHTML = `
+          <div class="param-top">
+            <div class="param-lbl" title="${def.label} (Drag to scrub · Dbl-click reset · Right-click Modulate)">${def.label}</div>
+            <div class="slider-box">
+              <div class="slider-track">
+                <div class="slider-base-fill"></div>
+                <div class="slider-mod-fill"></div>
+              </div>
+              <div class="slider-mod-tick"></div>
+              <div class="slider-thumb"></div>
+              <input class="slider-input" type="range" min="${def.min}" max="${def.max}" step="${def.step}" value="${this.values[def.key]}">
+            </div>
+            <input class="param-num" type="number" min="${def.min}" max="${def.max}" step="${def.step}" value="${this.values[def.key]}">
+            <button class="key-btn" title="Toggle Keyframe (K)">◆</button>
+            <button class="mod-btn" title="Modulate Parameter (AS1–8, B1–3, M1–16, LFO)">~</button>
+          </div>
+          <div class="mod-slot"></div>
+        `;
+
+        const lbl = row.querySelector('.param-lbl');
+        const slider = row.querySelector('.slider-input');
+        const num = row.querySelector('.param-num');
+        const keyBtn = row.querySelector('.key-btn');
+        const modBtn = row.querySelector('.mod-btn');
+
+        const focusThis = () => {
+          this.focusedProp = def.key;
+          Object.entries(this.rows).forEach(([k, r]) => {
+            if (r.el) r.el.classList.toggle('focused', k === def.key);
+          });
+          document.getElementById('tl-focused-info').innerHTML = `Focused Param: <strong style="color:var(--tx)">${def.label}</strong> (Press <span class="mono">K</span> to keyframe)`;
+        };
+
+        const commitBase = (rawVal, pushUndo = false) => {
+          focusThis();
+          const v = clamp(Number(rawVal), def.min, def.max);
+          this.values[def.key] = v;
+          if (def.key === 'camZoom') document.getElementById('hud-zoom').textContent = Math.round(v * 100) + '%';
+          if (SK.anim.autoKey || SK.anim.hasKeys(def.key)) {
+            SK.anim.setKey(def.key, SK.transport.time, v);
+          }
+          if (pushUndo) SK.undo.push('Change ' + def.label);
+          this.syncRowVisuals(def.key);
+        };
+
+        slider.oninput = () => commitBase(slider.value, false);
+        slider.onchange = () => commitBase(slider.value, true);
+        num.onchange = () => commitBase(num.value, true);
+
+        lbl.ondblclick = () => commitBase(def.def, true);
+        lbl.onmousedown = (e) => {
+          if (e.button !== 0) return;
+          focusThis();
+          const sx = e.clientX, sv = this.values[def.key];
+          const span = def.max - def.min;
+          const onMove = (me) => {
+            const delta = ((me.clientX - sx) / 140) * span * (me.shiftKey ? 0.2 : 1);
+            commitBase(Number((sv + delta).toFixed(4)), false);
+          };
+          const onUp = () => {
+            SK.undo.push('Scrub ' + def.label);
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+          };
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+        };
+
+        keyBtn.onclick = () => {
+          focusThis();
+          SK.undo.push('Keyframe ' + def.label);
+          const t = SK.transport.time;
+          if (SK.anim.isOnKey(def.key, t)) SK.anim.removeKeyAt(def.key, t);
+          else SK.anim.setKey(def.key, t, this.values[def.key]);
+          this.syncRowVisuals(def.key);
+        };
+
+        modBtn.onclick = () => {
+          focusThis();
+          this.toggleModDrawer(def.key);
+        };
+
+        row.oncontextmenu = (e) => {
+          focusThis();
+          SK.menu.context(e, [
+            ['Modulate…', () => this.toggleModDrawer(def.key, true), '~'],
+            ['Set Keyframe', () => { SK.anim.setKey(def.key, SK.transport.time, this.values[def.key]); this.syncRowVisuals(def.key); }, 'K'],
+            null,
+            ['Reset to Default', () => commitBase(def.def, true), 'DblClick']
+          ]);
+        };
+
+        this.rows[def.key] = { type: 'number', el: row };
+        card.appendChild(row);
+        this.syncRowVisuals(def.key);
+      });
+
+      parent.appendChild(card);
+    },
+
+    toggleModDrawer(key, forceOpen = null) {
+      const next = forceOpen !== null ? (forceOpen ? key : null) : (this.openDrawerProp === key ? null : key);
+      const prev = this.openDrawerProp;
+      this.openDrawerProp = next;
+      if (prev && this.rows[prev]?.el) this.renderModDrawer(prev);
+      if (next && this.rows[next]?.el) this.renderModDrawer(next);
+    },
+
+    renderModDrawer(key) {
+      const row = this.rows[key]?.el;
+      if (!row) return;
+      const slot = row.querySelector('.mod-slot');
+      slot.innerHTML = '';
+      if (this.openDrawerProp !== key) return;
+
+      const route = SK.mods.routes[key] || { source: '', intensity: 0.5, mult: 1 };
+      const groups = SK.mods.getSourceGroups();
+
+      const drawer = document.createElement('div');
+      drawer.className = 'mod-drawer';
+      drawer.innerHTML = `
+        <div class="mod-grid">
+          <select class="mod-sel" id="md-src-${key}">
+            ${groups.map(g => `<optgroup label="${g.label}">${g.options.map(o => `<option value="${o.id}" ${route.source===o.id?'selected':''}>${o.text}</option>`).join('')}</optgroup>`).join('')}
+          </select>
+          <button id="md-close-${key}" style="padding:2px 6px;font-size:11px">✕</button>
+        </div>
+        <div class="mod-subrow">
+          <label>Intensity</label>
+          <input class="mod-int-slider" id="md-int-${key}" type="range" min="-1" max="1" step="0.01" value="${route.intensity}">
+          <span class="mod-int-val" id="md-intv-${key}">${Math.round(route.intensity * 100)}%</span>
+        </div>
+        <div class="mod-subrow" style="justify-content:space-between">
+          <label>Scale Sub</label>
+          <div class="scale-pills">
+            ${[0.25, 0.5, 1, 2, 4].map(m => {
+              const lbl = m === 0.25 ? '÷4' : m === 0.5 ? '÷2' : m === 1 ? '1×' : m === 2 ? '×2' : '×4';
+              return `<button class="scale-pill ${route.mult===m?'active':''}" data-mult="${m}">${lbl}</button>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+
+      drawer.querySelector(`#md-src-${key}`).onchange = (e) => {
+        SK.undo.push('Route Mod ' + key);
+        SK.mods.setRoute(key, { source: e.target.value, intensity: route.intensity, mult: route.mult });
+        this.syncRowVisuals(key);
+      };
+      const intSl = drawer.querySelector(`#md-int-${key}`);
+      const intTx = drawer.querySelector(`#md-intv-${key}`);
+      intSl.oninput = () => {
+        const val = parseFloat(intSl.value);
+        intTx.textContent = Math.round(val * 100) + '%';
+        const cur = SK.mods.routes[key];
+        if (cur) cur.intensity = val;
+      };
+      drawer.querySelectorAll('.scale-pill').forEach(btn => {
+        btn.onclick = () => {
+          const m = parseFloat(btn.dataset.mult);
+          drawer.querySelectorAll('.scale-pill').forEach(b => b.classList.toggle('active', b === btn));
+          if (SK.mods.routes[key]) SK.mods.routes[key].mult = m;
+          else route.mult = m;
+        };
+      });
+      drawer.querySelector(`#md-close-${key}`).onclick = () => this.toggleModDrawer(key, false);
+      slot.appendChild(drawer);
+    },
+
+    syncRowVisuals(key) {
+      const entry = this.rows[key];
+      const def = this.meta[key];
+      if (!entry || !def) return;
+      if (entry.type === 'color') { entry.inp.value = this.values[key]; return; }
+      if (entry.type === 'select') { entry.sel.value = this.values[key]; return; }
+
+      const row = entry.el;
+      const base = this.values[key];
+      const eff = this.effective[key] ?? base;
+      const span = Math.max(1e-6, def.max - def.min);
+      const basePct = clamp(((base - def.min) / span) * 100, 0, 100);
+      const effPct = clamp(((eff - def.min) / span) * 100, 0, 100);
+
+      row.querySelector('.slider-input').value = base;
+      const numEl = row.querySelector('.param-num');
+      if (document.activeElement !== numEl) numEl.value = Number(base.toFixed(3));
+      row.querySelector('.slider-base-fill').style.width = basePct + '%';
+      row.querySelector('.slider-thumb').style.left = basePct + '%';
+
+      const route = SK.mods.routes[key];
+      const modFill = row.querySelector('.slider-mod-fill');
+      const modTick = row.querySelector('.slider-mod-tick');
+      const modBtn = row.querySelector('.mod-btn');
+
+      if (route && route.source) {
+        modBtn.classList.add('has-mod');
+        modBtn.textContent = route.source;
+        modBtn.style.width = 'auto';
+        modBtn.style.padding = '0 4px';
+        modBtn.style.fontSize = '9.5px';
+        const lo = Math.min(basePct, effPct);
+        const hi = Math.max(basePct, effPct);
+        modFill.style.left = lo + '%';
+        modFill.style.width = (hi - lo) + '%';
+        modTick.style.display = 'block';
+        modTick.style.left = effPct + '%';
+      } else {
+        modBtn.classList.remove('has-mod');
+        modBtn.textContent = '~';
+        modBtn.style.width = '22px';
+        modBtn.style.padding = '0';
+        modBtn.style.fontSize = '11px';
+        modFill.style.width = '0%';
+        modTick.style.display = 'none';
+      }
+
+      const keyBtn = row.querySelector('.key-btn');
+      const onKey = SK.anim.isOnKey(key, SK.transport.time);
+      const hasKey = SK.anim.hasKeys(key);
+      keyBtn.classList.toggle('on-key', onKey);
+      keyBtn.classList.toggle('has-key', hasKey && !onKey);
+    },
+
+    evaluateAll(t) {
+      Object.keys(this.meta).forEach(key => {
+        const def = this.meta[key];
+        if (def.type !== 'number') {
+          this.effective[key] = this.values[key];
+          return;
+        }
+        const base = SK.anim.eval(key, t, this.values[key]);
+        if (SK.anim.hasKeys(key)) this.values[key] = base;
+        this.effective[key] = SK.mods.evaluate(key, base, def.min, def.max);
+        this.syncRowVisuals(key);
+      });
+    },
+
+    refreshAll() {
+      Object.keys(this.rows).forEach(k => this.syncRowVisuals(k));
+    }
+  };
+
+  /* ============================================================================
+   * 15. MAIN STAGE RENDERER & INTERACTIVE MOUSE CONTROLS
+   * ============================================================================ */
+  const stageCanvas = document.getElementById('stage-canvas');
+  const ctx2d = stageCanvas.getContext('2d');
+  let spaceHeld = false;
+
+  function renderFrameToContext(ctx, W, H, t, offlineFrame = null, opts = {}) {
+    const dtMs = 1000 / SK.transport.fps;
+    SK.audioDeck.update(dtMs, offlineFrame);
+    SK.midi.update(dtMs);
+    SK.mods.updateLFOs(t, SK.transport.bpm);
+    SK.params.evaluateAll(t);
+
+    const p = SK.params.effective;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, W, H);
+
+    if (!opts.transparent) {
+      ctx.fillStyle = p.bgColor || '#0b0d12';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    if (SK.io.backdropImg && SK.io.backdropImg.complete) {
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      const sc = Math.max(W / SK.io.backdropImg.width, H / SK.io.backdropImg.height);
+      const iw = SK.io.backdropImg.width * sc;
+      const ih = SK.io.backdropImg.height * sc;
+      ctx.drawImage(SK.io.backdropImg, (W - iw) * 0.5, (H - ih) * 0.5, iw, ih);
+      ctx.restore();
+    }
+
+    const fitScale = Math.min(W, H) / 720;
+    ctx.translate(W * 0.5 + p.camPanX * fitScale, H * 0.5 + p.camPanY * fitScale);
+    ctx.scale(p.camZoom * fitScale, p.camZoom * fitScale);
+
+    if (p.showGuides >= 0.5 && !opts.transparent) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(140, 147, 161, 0.11)';
+      ctx.lineWidth = 1;
+      [90, 180, 270].forEach(r => {
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+      ctx.beginPath();
+      ctx.moveTo(-310, 0); ctx.lineTo(310, 0);
+      ctx.moveTo(0, -310); ctx.lineTo(0, 310);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.globalCompositeOperation = p.blendMode || 'lighter';
+    const gen = GENERATORS[STATE.generator] || GENERATORS.mandala;
+    gen.render(ctx, p, t, STATE.seed);
+
+    ctx.restore();
+  }
+
+  window.addEventListener('keydown', e => { if (e.code === 'Space') spaceHeld = true; });
+  window.addEventListener('keyup', e => { if (e.code === 'Space') spaceHeld = false; });
+
+  stageCanvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    STATE.values.camZoom = clamp(Math.round(STATE.values.camZoom * factor * 100) / 100, 0.25, 4);
+    document.getElementById('hud-zoom').textContent = Math.round(STATE.values.camZoom * 100) + '%';
+    SK.params.syncRowVisuals('camZoom');
+  }, { passive: false });
+
+  stageCanvas.addEventListener('mousedown', (e) => {
+    if (e.button === 2) return;
+    const isPan = e.button === 1 || spaceHeld;
+    const sx = e.clientX, sy = e.clientY;
+    const startPanX = STATE.values.camPanX;
+    const startPanY = STATE.values.camPanY;
+
+    // Pick top 2 numeric params of active generator for interactive drag sculpting
+    const genNums = GENERATORS[STATE.generator].schema.filter(d => d.type === 'number');
+    const pX = genNums[2] || genNums[0];
+    const pY = genNums[3] || genNums[1];
+    const startVX = pX ? STATE.values[pX.key] : 0;
+    const startVY = pY ? STATE.values[pY.key] : 0;
+
+    const onMove = (ev) => {
+      const dx = ev.clientX - sx;
+      const dy = ev.clientY - sy;
+      if (isPan) {
+        STATE.values.camPanX = clamp(Math.round(startPanX + dx / STATE.values.camZoom), -600, 600);
+        STATE.values.camPanY = clamp(Math.round(startPanY + dy / STATE.values.camZoom), -600, 600);
+        SK.params.syncRowVisuals('camPanX');
+        SK.params.syncRowVisuals('camPanY');
+      } else if (pX && pY) {
+        const spanX = pX.max - pX.min;
+        const spanY = pY.max - pY.min;
+        STATE.values[pX.key] = clamp(Number((startVX + (dx / 260) * spanX).toFixed(3)), pX.min, pX.max);
+        STATE.values[pY.key] = clamp(Number((startVY - (dy / 260) * spanY).toFixed(3)), pY.min, pY.max);
+        SK.params.syncRowVisuals(pX.key);
+        SK.params.syncRowVisuals(pY.key);
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      SK.undo.push(isPan ? 'Pan Camera' : 'Interactive Sculpt');
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+
+  stageCanvas.addEventListener('contextmenu', (e) => {
+    SK.menu.context(e, [
+      ['Fit Camera View', () => fitCamera(), 'Ctrl+0'],
+      ['Randomize Seed', () => { STATE.seed = Math.floor(Math.random() * 99999) + 1; SK.params.rebuildUI(); SK.undo.push('Randomize Seed'); }],
+      null,
+      ...Object.values(GENERATORS).map(g => [g.name, () => SK.params.switchGenerator(g.id), '', { checked: STATE.generator === g.id }])
+    ]);
+  });
+
+  function fitCamera() {
+    STATE.values.camZoom = 1;
+    STATE.values.camPanX = 0;
+    STATE.values.camPanY = 0;
+    document.getElementById('hud-zoom').textContent = '100%';
+    SK.params.syncRowVisuals('camZoom');
+    SK.params.syncRowVisuals('camPanX');
+    SK.params.syncRowVisuals('camPanY');
+    SK.toast('Camera Fit (100%)');
+  }
+
+  /* ============================================================================
+   * 16. FILE I/O, PROJECT JSON & AUTOSAVE (SK.io)
+   * ============================================================================ */
+  SK.io = {
+    projectConfig: null,
+    backdropImg: null,
+    project(cfg) {
+      this.projectConfig = cfg;
+      setInterval(() => {
+        if (!this.projectConfig) return;
+        lsSet('sk_v12_autosave', {
+          app: this.projectConfig.app,
+          version: SK.version,
+          modified: new Date().toISOString(),
+          data: this.projectConfig.save()
+        });
+      }, 60000);
+    },
+    saveProject() {
+      if (!this.projectConfig) return;
+      const payload = {
+        app: this.projectConfig.app,
+        version: SK.version,
+        schema: 1,
+        created: new Date().toISOString(),
+        settings: { bpm: SK.transport.bpm, bars: SK.transport.bars, fps: SK.transport.fps, accent: SK.theme.accent },
+        data: this.projectConfig.save()
+      };
+      const name = `studiokit_v12_${STATE.generator}.json`;
+      this.downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), name);
+      document.getElementById('project-badge').textContent = name;
+      SK.toast('Saved ' + name, 'ok');
+    },
+    openDialog() {
+      const inp = document.getElementById('hidden-file-input');
+      inp.accept = '.json,audio/*,image/*';
+      inp.onchange = (e) => { if (e.target.files[0]) this.routeFile(e.target.files[0]); };
+      inp.click();
+    },
+    async routeFile(file) {
+      if (!file) return;
+      if (file.name.endsWith('.json')) {
+        try {
+          const obj = JSON.parse(await file.text());
+          if (obj.settings) {
+            SK.transport.bpm = obj.settings.bpm || 124;
+            SK.transport.bars = obj.settings.bars || 8;
+            SK.transport.fps = obj.settings.fps || 60;
+            if (obj.settings.accent) SK.theme.apply({ accent: obj.settings.accent });
+            document.getElementById('inp-bpm').value = SK.transport.bpm;
+            document.getElementById('inp-bars').value = SK.transport.bars;
+            document.getElementById('inp-fps').value = SK.transport.fps;
+          }
+          if (this.projectConfig && obj.data) this.projectConfig.load(obj.data);
+          document.getElementById('project-badge').textContent = file.name;
+          SK.toast('Loaded project: ' + file.name, 'ok');
+        } catch (err) {
+          SK.toast('Invalid JSON project: ' + err.message, 'err');
+        }
+      } else if (file.type.startsWith('audio/')) {
+        const emptyIdx = SK.audioDeck.stems.findIndex(s => !s.buffer);
+        await SK.audioDeck.loadStemFile(emptyIdx >= 0 ? emptyIdx : 0, file);
+      } else if (file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => { this.backdropImg = img; SK.toast('Loaded backdrop image: ' + file.name, 'ok'); };
+        img.src = url;
+      }
+    },
+    restoreAutosave() {
+      const saved = lsGet('sk_v12_autosave', null);
+      if (!saved || !saved.data || !this.projectConfig) return SK.toast('No autosave found', 'warn');
+      this.projectConfig.load(saved.data);
+      SK.toast('Restored autosave from ' + saved.modified, 'ok');
+    },
+    downloadBlob(blob, filename) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }
+  };
+
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => {
+    e.preventDefault();
+    if (e.dataTransfer?.files?.[0]) SK.io.routeFile(e.dataTransfer.files[0]);
+  });
+  window.addEventListener('paste', e => {
+    for (const it of (e.clipboardData?.items || [])) {
+      if (it.type.startsWith('image/')) { SK.io.routeFile(it.getAsFile()); break; }
+    }
+  });
+
+  /* ============================================================================
+   * 17. PURE-JS STORE-ZIP & PNG / PNG-SEQ / WEBM EXPORT DIALOG (SK.export)
+   * ============================================================================ */
+  SK.export = {
+    buildStoreZip(files) {
+      const crcTable = new Uint32Array(256);
+      for (let i = 0; i < 256; i++) {
+        let c = i;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+        crcTable[i] = c;
+      }
+      const crc32 = (u8) => {
+        let c = 0xffffffff;
+        for (let i = 0; i < u8.length; i++) c = crcTable[(c ^ u8[i]) & 0xff] ^ (c >>> 8);
+        return (c ^ 0xffffffff) >>> 0;
+      };
+      const enc = new TextEncoder();
+      const chunks = [], central = [];
+      let offset = 0;
+
+      files.forEach(f => {
+        const nameBytes = enc.encode(f.name);
+        const crc = crc32(f.data);
+        const lh = new ArrayBuffer(30);
+        const lv = new DataView(lh);
+        lv.setUint32(0, 0x04034b50, true);
+        lv.setUint16(4, 20, true);
+        lv.setUint16(8, 0, true);
+        lv.setUint32(14, crc, true);
+        lv.setUint32(18, f.data.length, true);
+        lv.setUint32(22, f.data.length, true);
+        lv.setUint16(26, nameBytes.length, true);
+        chunks.push(new Uint8Array(lh), nameBytes, f.data);
+
+        const ch = new ArrayBuffer(46);
+        const cv = new DataView(ch);
+        cv.setUint32(0, 0x02014b50, true);
+        cv.setUint16(4, 20, true);
+        cv.setUint16(6, 20, true);
+        cv.setUint32(16, crc, true);
+        cv.setUint32(20, f.data.length, true);
+        cv.setUint32(24, f.data.length, true);
+        cv.setUint16(28, nameBytes.length, true);
+        cv.setUint32(42, offset, true);
+        central.push(new Uint8Array(ch), nameBytes);
+
+        offset += 30 + nameBytes.length + f.data.length;
+      });
+
+      const centralSize = central.reduce((a, b) => a + b.length, 0);
+      const eocd = new ArrayBuffer(22);
+      const ev = new DataView(eocd);
+      ev.setUint32(0, 0x06054b50, true);
+      ev.setUint16(8, files.length, true);
+      ev.setUint16(10, files.length, true);
+      ev.setUint32(12, centralSize, true);
+      ev.setUint32(16, offset, true);
+      return new Blob([...chunks, ...central, new Uint8Array(eocd)], { type: 'application/zip' });
+    },
+
+    dialog() {
+      const box = document.createElement('div');
+      box.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+      box.innerHTML = `
+        <div class="row-between">
+          <span>Export Format</span>
+          <select id="exp-fmt" class="mod-sel" style="width:230px">
+            <option value="png">Still PNG (Current Frame)</option>
+            <option value="zip">PNG Sequence (.zip — Offline Deterministic)</option>
+            <option value="webm">WebM Video (Real-time Canvas Stream)</option>
+          </select>
+        </div>
+        <div class="row-between">
+          <span>Resolution Scale</span>
+          <select id="exp-scale" class="mod-sel" style="width:230px">
+            <option value="1">1× (960×540)</option>
+            <option value="2">2× (1920×1080 Full HD)</option>
+            <option value="4">4× (3840×2160 4K)</option>
+          </select>
+        </div>
+        <div class="row-between">
+          <span>Transparent Background</span>
+          <label style="display:flex;align-items:center;gap:6px"><input id="exp-alpha" type="checkbox"> Alpha PNG / Sequence</label>
+        </div>
+        <div class="row-between">
+          <span>Frame Count</span>
+          <input id="exp-frames" class="param-num" style="width:90px" type="number" min="10" max="600" value="${Math.min(180, SK.transport.totalFrames)}">
+        </div>
+        <div class="muted" style="font-size:11px">
+          Offline PNG Sequence pre-computes <strong>AS1–AS8</strong> &amp; <strong>B1–B3</strong> audio envelopes frame-for-frame so reactive motion exports deterministically.
+        </div>
+        <div id="exp-prog-wrap" style="display:none;flex-direction:column;gap:4px">
+          <div class="vu-bar" style="height:8px"><div id="exp-prog-fill" class="vu-fill" style="width:0%;background:var(--acc)"></div></div>
+          <div class="mono" id="exp-prog-tx" style="font-size:11px;color:var(--tx2)">Rendering…</div>
+        </div>
+      `;
+
+      let cancelled = false;
+      SK.ui.modal({
+        title: 'Export Still / Sequence / Video',
+        bodyEl: box,
+        onClose: () => { cancelled = true; },
+        buttons: [
+          { label: 'Cancel', onClick: () => { cancelled = true; } },
+          {
+            label: 'Render & Download',
+            primary: true,
+            onClick: () => {
+              const fmt = box.querySelector('#exp-fmt').value;
+              const scale = parseFloat(box.querySelector('#exp-scale').value) || 1;
+              const alpha = box.querySelector('#exp-alpha').checked;
+              const count = clamp(parseInt(box.querySelector('#exp-frames').value, 10) || 60, 1, 600);
+              const progWrap = box.querySelector('#exp-prog-wrap');
+              const progFill = box.querySelector('#exp-prog-fill');
+              const progTx = box.querySelector('#exp-prog-tx');
+              progWrap.style.display = 'flex';
+
+              const offCanvas = document.createElement('canvas');
+              offCanvas.width = Math.round(960 * scale);
+              offCanvas.height = Math.round(540 * scale);
+              const offCtx = offCanvas.getContext('2d');
+
+              (async () => {
+                if (fmt === 'png') {
+                  renderFrameToContext(offCtx, offCanvas.width, offCanvas.height, SK.transport.time, null, { transparent: alpha });
+                  offCanvas.toBlob(blob => {
+                    SK.io.downloadBlob(blob, `studiokit_${STATE.generator}_f${SK.transport.frame}.png`);
+                    SK.ui.closeModal();
+                    SK.toast('Exported PNG still', 'ok');
+                  }, 'image/png');
+                  return;
+                }
+
+                if (fmt === 'zip') {
+                  SK.transport.pause();
+                  const fps = SK.transport.fps;
+                  SK.audioDeck.prepareOfflineEnvelopes(count, fps);
+                  const files = [];
+                  for (let f = 0; f < count; f++) {
+                    if (cancelled) break;
+                    renderFrameToContext(offCtx, offCanvas.width, offCanvas.height, f / fps, f, { transparent: alpha });
+                    const blob = await new Promise(res => offCanvas.toBlob(res, 'image/png'));
+                    files.push({ name: `${STATE.generator}_${String(f).padStart(4, '0')}.png`, data: new Uint8Array(await blob.arrayBuffer()) });
+                    const pct = Math.round(((f + 1) / count) * 100);
+                    progFill.style.width = pct + '%';
+                    progTx.textContent = `Rendering frame ${f + 1} / ${count} (${pct}%)`;
+                    await new Promise(r => setTimeout(r, 0));
+                  }
+                  if (!cancelled) {
+                    SK.io.downloadBlob(this.buildStoreZip(files), `studiokit_${STATE.generator}_${count}f.zip`);
+                    SK.ui.closeModal();
+                    SK.toast(`Exported ${count}-frame PNG Sequence ZIP`, 'ok');
+                  }
+                  return;
+                }
+
+                if (fmt === 'webm') {
+                  if (!stageCanvas.captureStream || typeof MediaRecorder === 'undefined') {
+                    SK.toast('MediaRecorder not supported in this browser', 'err');
+                    return;
+                  }
+                  const stream = stageCanvas.captureStream(SK.transport.fps);
+                  const rec = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                  const chunks = [];
+                  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+                  rec.onstop = () => {
+                    if (!cancelled) {
+                      SK.io.downloadBlob(new Blob(chunks, { type: 'video/webm' }), `studiokit_${STATE.generator}.webm`);
+                      SK.ui.closeModal();
+                      SK.toast('Exported WebM video', 'ok');
+                    }
+                  };
+                  SK.transport.setTime(0);
+                  SK.transport.play();
+                  rec.start();
+                  const durMs = (count / SK.transport.fps) * 1000;
+                  const t0 = performance.now();
+                  const iv = setInterval(() => {
+                    const p = clamp((performance.now() - t0) / durMs, 0, 1);
+                    progFill.style.width = Math.round(p * 100) + '%';
+                    progTx.textContent = `Recording WebM… ${Math.round(p * 100)}%`;
+                    if (p >= 1 || cancelled) {
+                      clearInterval(iv);
+                      SK.transport.pause();
+                      rec.stop();
+                    }
+                  }, 60);
+                }
+              })();
+              return false;
+            }
+          }
+        ]
+      });
+    }
+  };
+
+  /* ============================================================================
+   * 18. TIMELINE RULER WIDGET
+   * ============================================================================ */
+  const tlCanvas = document.getElementById('tl-canvas');
+  const tlCtx = tlCanvas.getContext('2d');
+
+  function drawTimeline() {
+    const rect = tlCanvas.parentElement.getBoundingClientRect();
+    if (tlCanvas.width !== Math.floor(rect.width) || tlCanvas.height !== Math.floor(rect.height)) {
+      tlCanvas.width = Math.max(100, Math.floor(rect.width));
+      tlCanvas.height = Math.max(20, Math.floor(rect.height));
+    }
+    const W = tlCanvas.width, H = tlCanvas.height;
+    tlCtx.clearRect(0, 0, W, H);
+
+    const dur = SK.transport.duration;
+    const totalBeats = SK.transport.bars * SK.transport.beatsPerBar;
+
+    for (let b = 0; b <= totalBeats; b++) {
+      const x = (b / totalBeats) * W;
+      const isBar = (b % SK.transport.beatsPerBar === 0);
+      tlCtx.strokeStyle = isBar ? '#4c5260' : '#262a33';
+      tlCtx.beginPath();
+      tlCtx.moveTo(x, isBar ? 0 : H * 0.45);
+      tlCtx.lineTo(x, H);
+      tlCtx.stroke();
+      if (isBar && b < totalBeats) {
+        tlCtx.fillStyle = '#8c93a1';
+        tlCtx.font = '10px monospace';
+        tlCtx.fillText(String(b / SK.transport.beatsPerBar + 1), x + 3, 10);
+      }
+    }
+
+    const keys = SK.anim.tracks[SK.params.focusedProp] || [];
+    keys.forEach(k => {
+      const kx = (k.t / dur) * W;
+      tlCtx.fillStyle = '#e6b450';
+      tlCtx.beginPath();
+      tlCtx.moveTo(kx, H * 0.5 - 4);
+      tlCtx.lineTo(kx + 4, H * 0.5);
+      tlCtx.lineTo(kx, H * 0.5 + 4);
+      tlCtx.lineTo(kx - 4, H * 0.5);
+      tlCtx.closePath();
+      tlCtx.fill();
+    });
+
+    const px = (SK.transport.time / dur) * W;
+    tlCtx.strokeStyle = SK.theme.accent;
+    tlCtx.lineWidth = 2;
+    tlCtx.beginPath();
+    tlCtx.moveTo(px, 0);
+    tlCtx.lineTo(px, H);
+    tlCtx.stroke();
+  }
+
+  const tlWrap = document.getElementById('tl-ruler-wrap');
+  tlWrap.onmousedown = (e) => {
+    const scrub = (me) => {
+      const r = tlWrap.getBoundingClientRect();
+      SK.transport.setTime(clamp((me.clientX - r.left) / r.width, 0, 1) * SK.transport.duration);
+    };
+    scrub(e);
+    const onUp = () => { window.removeEventListener('mousemove', scrub); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', scrub);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  /* ============================================================================
+   * 19. PATCHES PANEL, MENUS, SHORTCUTS & HOST INTEROP (window.STUDIO_APP)
+   * ============================================================================ */
+  function applyQuickReactivePatch(mode = 'audio') {
+    SK.undo.push('Apply Reactive Patch');
+    SK.mods.routes = {};
+    if (mode === 'audio') {
+      SK.audioDeck.loadSyntheticStems();
+      if (STATE.generator === 'mandala') {
+        SK.mods.setRoute('radius', { source: 'AS1', intensity: 0.45, mult: 1 });
+        SK.mods.setRoute('petalAmp', { source: 'B1', intensity: 0.6, mult: 1 });
+        SK.mods.setRoute('glow', { source: 'B3', intensity: 0.7, mult: 1 });
+        SK.mods.setRoute('hueStart', { source: 'AS4', intensity: 0.4, mult: 1 });
+      } else if (STATE.generator === 'terrain') {
+        SK.mods.setRoute('elevAmp', { source: 'B1', intensity: 0.65, mult: 1 });
+        SK.mods.setRoute('ridgeFreq', { source: 'AS4', intensity: 0.4, mult: 1 });
+        SK.mods.setRoute('nodeDots', { source: 'B3', intensity: 0.75, mult: 1 });
+        SK.mods.setRoute('hueStart', { source: 'AS1', intensity: 0.35, mult: 1 });
+      } else if (STATE.generator === 'flowfield') {
+        SK.mods.setRoute('flowSpeed', { source: 'B1', intensity: 0.55, mult: 1 });
+        SK.mods.setRoute('turbulence', { source: 'B3', intensity: 0.65, mult: 1 });
+        SK.mods.setRoute('vortexPull', { source: 'AS4', intensity: 0.5, mult: 1 });
+        SK.mods.setRoute('hueStart', { source: 'AS2', intensity: 0.4, mult: 1 });
+      } else if (STATE.generator === 'spirograph') {
+        SK.mods.setRoute('penDist', { source: 'B1', intensity: 0.55, mult: 1 });
+        SK.mods.setRoute('harmonicWave', { source: 'B3', intensity: 0.7, mult: 1 });
+        SK.mods.setRoute('echoSpread', { source: 'AS4', intensity: 0.45, mult: 1 });
+        SK.mods.setRoute('hueStart', { source: 'AS1', intensity: 0.35, mult: 1 });
+      } else if (STATE.generator === 'oscilloscope') {
+        SK.mods.setRoute('fmMod', { source: 'B1', intensity: 0.65, mult: 1 });
+        SK.mods.setRoute('rgbSplit', { source: 'AS2', intensity: 0.75, mult: 1 });
+        SK.mods.setRoute('glitchAmp', { source: 'B3', intensity: 0.8, mult: 1 });
+        SK.mods.setRoute('scopeScale', { source: 'AS1', intensity: 0.4, mult: 1 });
+      }
+      if (!SK.transport.playing) SK.transport.play();
+      SK.toast(`Applied Audio Stem + 3-Band EQ Patch to ${GENERATORS[STATE.generator].short}`, 'ok');
+    } else {
+      const genNums = GENERATORS[STATE.generator].schema.filter(d => d.type === 'number');
+      genNums.slice(0, 4).forEach((def, i) => {
+        SK.mods.setRoute(def.key, { source: 'M' + (i + 1), intensity: 0.55, mult: 1 });
+      });
+      SK.panels.activate('midi');
+      SK.toast(`Routed M1–M4 to ${GENERATORS[STATE.generator].short} — trigger pads or loopMIDI!`, 'ok');
+    }
+    SK.mods.updateActiveCountHUD();
+    SK.params.refreshAll();
+  }
+
+  const audioPanelEl = SK.audioDeck.buildPanel();
+  const midiPanelEl = SK.midi.buildPanel();
+  const paramsPanelEl = SK.params.buildPanel();
+
+  const patchesEl = document.createElement('div');
+  patchesEl.innerHTML = `
+    <div class="card">
+      <div class="card-hdr"><span>AUDIO / MIDI REACTIVE PATCHES</span></div>
+      <button class="primary" id="btn-patch-audio">⚡ Auto-Patch Active Generator to Stems &amp; 3-Band EQ</button>
+      <button id="btn-patch-midi">🎹 Auto-Patch Active Generator to MIDI M1–M4</button>
+      <button id="btn-patch-clear">Clear All Modulations</button>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span>SEED &amp; CHROME ACCENT</span></div>
+      <div style="display:flex;gap:6px">
+        <button id="btn-rnd-seed" style="flex:1">🎲 Randomize Seed</button>
+        <button id="btn-load-bg" style="flex:1">🖼 Backdrop Image</button>
+      </div>
+      <div class="row-between" style="margin-top:4px">
+        <span class="muted">Tool Accent Token</span>
+        <div style="display:flex;gap:4px">
+          ${['#4fa3d8','#5fcf8a','#e6b450','#b47aea','#e5555f'].map(c => `<button style="width:20px;height:20px;padding:0;background:${c};border-color:${c}" data-acc="${c}"></button>`).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+  patchesEl.querySelector('#btn-patch-audio').onclick = () => applyQuickReactivePatch('audio');
+  patchesEl.querySelector('#btn-patch-midi').onclick = () => applyQuickReactivePatch('midi');
+  patchesEl.querySelector('#btn-patch-clear').onclick = () => {
+    SK.mods.routes = {};
+    SK.mods.updateActiveCountHUD();
+    SK.params.refreshAll();
+    SK.toast('Cleared all modulation routings');
+  };
+  patchesEl.querySelector('#btn-rnd-seed').onclick = () => {
+    STATE.seed = Math.floor(Math.random() * 99999) + 1;
+    SK.params.rebuildUI();
+    SK.undo.push('Randomize Seed');
+  };
+  patchesEl.querySelector('#btn-load-bg').onclick = () => SK.io.openDialog();
+  patchesEl.querySelectorAll('[data-acc]').forEach(b => {
+    b.onclick = () => SK.theme.apply({ accent: b.dataset.acc });
+  });
+
+  SK.panels.register('left', [
+    { id: 'audiodeck', title: 'Audio Deck', badge: 'AS1–8', el: audioPanelEl },
+    { id: 'midi', title: 'MIDI Router', badge: 'M1–16', el: midiPanelEl }
+  ]);
+  SK.panels.register('right', [
+    { id: 'params', title: 'Generators', badge: '5 MODES', el: paramsPanelEl },
+    { id: 'patches', title: 'Patches & Style', el: patchesEl }
+  ]);
+
+  const captureDoc = () => ({
+    generator: STATE.generator,
+    seed: STATE.seed,
+    values: { ...STATE.values },
+    tracks: JSON.parse(JSON.stringify(SK.anim.tracks)),
+    routes: JSON.parse(JSON.stringify(SK.mods.routes)),
+    eq: { source: SK.audioDeck.splitterSource, lm: SK.audioDeck.lowMidHz, mh: SK.audioDeck.midHighHz },
+    midi: {
+      routingMode: SK.midi.routingMode,
+      pipes: SK.midi.pipes.map(p => ({ channel: p.channel, learnedNote: p.learnedNote, responseMode: p.responseMode, releaseMs: p.releaseMs }))
+    }
+  });
+
+  const restoreDoc = (doc) => {
+    if (!doc) return;
+    if (doc.generator && GENERATORS[doc.generator]) STATE.generator = doc.generator;
+    if (doc.seed) STATE.seed = doc.seed;
+    if (doc.values) Object.assign(STATE.values, doc.values);
+    SK.anim.tracks = doc.tracks || {};
+    SK.mods.routes = doc.routes || {};
+    if (doc.eq) {
+      SK.audioDeck.splitterSource = doc.eq.source || 'master';
+      SK.audioDeck.lowMidHz = doc.eq.lm || 250;
+      SK.audioDeck.midHighHz = doc.eq.mh || 2500;
+      SK.audioDeck.updateCrossovers();
+      SK.audioDeck.rerouteSplitter();
+    }
+    if (doc.midi && doc.midi.pipes) {
+      SK.midi.routingMode = doc.midi.routingMode || 'hybrid';
+      doc.midi.pipes.forEach((mp, i) => { if (SK.midi.pipes[i]) Object.assign(SK.midi.pipes[i], mp); });
+      SK.midi.renderUI();
+    }
+    SK.mods.updateActiveCountHUD();
+    SK.params.rebuildUI();
+  };
+
+  SK.undo.track(captureDoc, restoreDoc);
+  SK.io.project({ app: 'studiokit_v1_2', schema: 1, save: captureDoc, load: restoreDoc });
+
+  // Keyboard Shortcuts
+  SK.keys.bind('Space', () => SK.transport.toggle(), { label: 'Play / Pause', group: 'Transport' });
+  SK.keys.bind('Home', () => SK.transport.setTime(0), { label: 'Jump to Start', group: 'Transport' });
+  SK.keys.bind('Left', () => SK.transport.stepFrame(-1), { label: 'Previous Frame', group: 'Transport' });
+  SK.keys.bind('Right', () => SK.transport.stepFrame(1), { label: 'Next Frame', group: 'Transport' });
+  SK.keys.bind('K', () => {
+    const k = SK.params.focusedProp;
+    if (k in STATE.values) {
+      SK.anim.setKey(k, SK.transport.time, STATE.values[k]);
+      SK.params.syncRowVisuals(k);
+      SK.toast(`Keyframed ${k} at ${SK.transport.time.toFixed(2)}s`);
+    }
+  }, { label: 'Set Keyframe on Focused Param', group: 'Animation' });
+  SK.keys.bind('Ctrl+Z', () => SK.undo.undo(), { label: 'Undo', group: 'Edit' });
+  SK.keys.bind('Ctrl+Y', () => SK.undo.redo(), { label: 'Redo', group: 'Edit' });
+  SK.keys.bind('Ctrl+S', () => SK.io.saveProject(), { label: 'Save Project JSON', group: 'File' });
+  SK.keys.bind('Ctrl+O', () => SK.io.openDialog(), { label: 'Open Project / Stem / Image', group: 'File' });
+  SK.keys.bind('Ctrl+E', () => SK.export.dialog(), { label: 'Export PNG / ZIP / WebM', group: 'File' });
+  SK.keys.bind('Ctrl+0', fitCamera, { label: 'Fit Camera View', group: 'View' });
+  SK.keys.bind('H', () => SK.panels.toggleHideUI(), { label: 'Hide / Show UI Panels', group: 'View' });
+  SK.keys.bind('F1', () => SK.keys.showHelp(), { label: 'Keyboard Shortcuts Sheet', group: 'Help' });
+
+  // Desktop Menu Bar
+  SK.menu.bar({
+    File: [
+      ['New Session', () => { SK.undo.push('New'); populateAllDefaults(); SK.anim.tracks = {}; SK.mods.routes = {}; SK.io.backdropImg = null; SK.params.rebuildUI(); }, 'Ctrl+N'],
+      ['Open Project / Audio / Image…', () => SK.io.openDialog(), 'Ctrl+O'],
+      ['Save Project JSON…', () => SK.io.saveProject(), 'Ctrl+S'],
+      ['Restore 60s Autosave', () => SK.io.restoreAutosave()],
+      null,
+      ['Export Still / Sequence / Video…', () => SK.export.dialog(), 'Ctrl+E']
+    ],
+    Edit: [
+      ['Undo', () => SK.undo.undo(), 'Ctrl+Z'],
+      ['Redo', () => SK.undo.redo(), 'Ctrl+Y'],
+      null,
+      ['Bake Live Mods to Keyframes', () => SK.mods.bakeToKeyframes()]
+    ],
+    View: [
+      ['Fit Camera View', fitCamera, 'Ctrl+0'],
+      null,
+      ['UI Scale 90%', () => SK.theme.apply({ scale: 0.9 })],
+      ['UI Scale 100%', () => SK.theme.apply({ scale: 1.0 })],
+      ['UI Scale 115%', () => SK.theme.apply({ scale: 1.15 })],
+      ['UI Scale 130%', () => SK.theme.apply({ scale: 1.3 })],
+      null,
+      ['Hide / Show Panels', () => SK.panels.toggleHideUI(), 'H']
+    ],
+    Generators: () => [
+      ...Object.values(GENERATORS).map((g, idx) => [g.name, () => SK.params.switchGenerator(g.id), `Gen ${idx + 1}`, { checked: STATE.generator === g.id }]),
+      null,
+      ['Randomize Seed', () => { STATE.seed = Math.floor(Math.random() * 99999) + 1; SK.params.rebuildUI(); }]
+    ],
+    Modulators: [
+      ['Load Synthetic Stems (AS1–AS8)', () => SK.audioDeck.loadSyntheticStems()],
+      ['Auto-Patch Active Generator (Audio Stems + EQ)', () => applyQuickReactivePatch('audio')],
+      ['Auto-Patch Active Generator (MIDI M1–M4)', () => applyQuickReactivePatch('midi')],
+      ['Refresh MIDI Ports', () => SK.midi.refreshPorts()],
+      null,
+      ['Bake Mods to Keyframes', () => SK.mods.bakeToKeyframes()]
+    ],
+    Window: SK.panels.windowMenu(),
+    Help: [
+      ['Keyboard Shortcuts', () => SK.keys.showHelp(), 'F1'],
+      ['About StudioKit V1.2', () => SK.ui.modal({
+        title: 'StudioKit V1.2',
+        bodyEl: '<p>Single-file creative visual suite combining the <strong>5-Mode Procedural Generator Engine</strong> with the <strong>AS1–AS8</strong> Audio Stem Deck, <strong>B1–B3</strong> 3-Band EQ Splitter, <strong>M1–M16</strong> DAW/Note/Learn MIDI Router, and non-destructive parameter modulation.</p>'
+      })]
+    ]
+  });
+
+  // Transport Bar Listeners
+  document.getElementById('btn-play').onclick = () => SK.transport.toggle();
+  document.getElementById('btn-home').onclick = () => SK.transport.setTime(0);
+  document.getElementById('btn-step-b').onclick = () => SK.transport.stepFrame(-1);
+  document.getElementById('btn-step-f').onclick = () => SK.transport.stepFrame(1);
+  document.getElementById('btn-top-export').onclick = () => SK.export.dialog();
+  document.getElementById('btn-loop').onclick = (e) => {
+    SK.transport.loop = !SK.transport.loop;
+    e.currentTarget.classList.toggle('active', SK.transport.loop);
+  };
+  document.getElementById('btn-autokey').onclick = (e) => {
+    SK.anim.autoKey = !SK.anim.autoKey;
+    e.currentTarget.classList.toggle('active', SK.anim.autoKey);
+  };
+  document.getElementById('btn-bake-mods').onclick = () => SK.mods.bakeToKeyframes();
+  document.getElementById('inp-bpm').onchange = (e) => { SK.transport.bpm = clamp(parseFloat(e.target.value) || 120, 30, 300); };
+  document.getElementById('inp-bars').onchange = (e) => { SK.transport.bars = clamp(parseInt(e.target.value, 10) || 8, 1, 128); };
+  document.getElementById('inp-fps').onchange = (e) => {
+    SK.transport.fps = clamp(parseInt(e.target.value, 10) || 60, 12, 120);
+    document.getElementById('status-right').textContent = `SK v1.2.0 · 960×540 · ${SK.transport.fps} FPS`;
+  };
+
+  // Host Interop Interface (§4.3)
+  window.STUDIO_APP = {
+    id: 'studiokit_v1_2',
+    version: SK.version,
+    canvas: stageCanvas,
+    params: STATE.values,
+    setParam(k, v) { if (k in STATE.values) { STATE.values[k] = v; SK.params.syncRowVisuals(k); } },
+    setGenerator(g) { SK.params.switchGenerator(g); },
+    setTime(t) { SK.transport.setTime(t); },
+    play() { SK.transport.play(); },
+    pause() { SK.transport.pause(); },
+    getState: captureDoc,
+    setState: restoreDoc
+  };
+
+  const savedTheme = lsGet('sk_v12_theme', null);
+  if (savedTheme) SK.theme.apply(savedTheme);
+  SK.midi.init();
+
+  function mainLoop(now) {
+    SK.transport.tick(now);
+    renderFrameToContext(ctx2d, stageCanvas.width, stageCanvas.height, SK.transport.time, null);
+    drawTimeline();
+    requestAnimationFrame(mainLoop);
+  }
+
+  window.onload = () => {
+    SK.transport.updateUI();
+    requestAnimationFrame(mainLoop);
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,2074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FLUID_VFX // RTX 4090 GPU SIMULATOR + 360° CAMERA RIG</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;600;700&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+}
+
+body {
+    font-family: 'IBM Plex Mono', monospace;
+    background: #08080a;
+    color: #e2e8f0;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #0f1117;
+}
+::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
+}
+
+.glow-text {
+    text-shadow: 0 0 12px rgba(0, 255, 255, 0.4);
+}
+
+.glass-panel {
+    background: rgba(15, 17, 23, 0.88);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 255, 255, 0.16);
+}
+
+.cyber-btn {
+    position: relative;
+    background: #111827;
+    border: 1px solid #1f2937;
+    color: #9ca3af;
+    transition: all 0.18s ease;
+}
+
+.cyber-btn:hover:not(:disabled) {
+    border-color: #06b6d4;
+    color: #06b6d4;
+    box-shadow: 0 0 14px rgba(6, 182, 212, 0.25);
+}
+
+.cyber-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.cyber-btn.active {
+    background: rgba(6, 182, 212, 0.16);
+    border-color: #06b6d4;
+    color: #22d3ee;
+    box-shadow: 0 0 18px rgba(6, 182, 212, 0.35);
+}
+
+.cyber-input {
+    background: #030712;
+    border: 1px solid #1f2937;
+    color: #f3f4f6;
+    font-family: 'IBM Plex Mono', monospace;
+}
+.cyber-input:focus {
+    outline: none;
+    border-color: #06b6d4;
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+}
+
+/* Checkerboard for alpha visibility */
+.checkerboard {
+    background-image: 
+        linear-gradient(45deg, #12141a 25%, transparent 25%), 
+        linear-gradient(-45deg, #12141a 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #12141a 75%), 
+        linear-gradient(-45deg, transparent 75%, #12141a 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+    background-color: #090a0f;
+}
+
+/* Custom Range Slider */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: #1e293b;
+    border-radius: 999px;
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #22d3ee;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
+}
+input[type="range"]::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #22d3ee;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
+}
+
+/* Keyframe Diamond Marker */
+.kf-diamond {
+    width: 11px;
+    height: 11px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    background: #f59e0b;
+    border: 1.5px solid #fef3c7;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.75);
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.12s ease;
+}
+.kf-diamond:hover {
+    transform: translate(-50%, -50%) rotate(45deg) scale(1.28);
+    background: #38bdf8;
+    border-color: #ffffff;
+}
+.kf-diamond.selected {
+    background: #22d3ee;
+    border-color: #ffffff;
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.95);
+    transform: translate(-50%, -50%) rotate(45deg) scale(1.25);
+}
+</style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+<!-- TOP APP HEADER -->
+<header class="h-12 border-b border-cyan-500/20 bg-gray-950/95 px-4 lg:px-6 flex items-center justify-between z-30 shrink-0">
+    <div class="flex items-center gap-3">
+        <div class="w-2.5 h-2.5 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_10px_#22d3ee]"></div>
+        <h1 class="font-bold tracking-widest text-cyan-400 text-xs sm:text-sm glow-text truncate">FLUID_VFX // 360° CAMERA &amp; TIMELINE GPU SIMULATOR</h1>
+    </div>
+    <div class="flex items-center gap-2 sm:gap-4 text-xs">
+        <div class="hidden md:flex items-center gap-2 px-2.5 py-1 bg-gray-900 border border-gray-800 rounded">
+            <span class="text-gray-400">CAM:</span>
+            <span id="headerCamReadout" class="text-amber-400 font-bold">0° | 1.00x</span>
+        </div>
+        <div class="flex items-center gap-2 px-2.5 py-1 bg-gray-900 border border-gray-800 rounded">
+            <span class="text-gray-400">FPS:</span>
+            <span id="fpsCounter" class="text-cyan-400 font-bold w-7 text-right">60</span>
+        </div>
+        <div class="hidden sm:flex items-center gap-2 px-2.5 py-1 bg-gray-900 border border-gray-800 rounded">
+            <span class="text-gray-400">GRID:</span>
+            <span id="gridResolutionLabel" class="text-cyan-400 font-bold">256x256</span>
+        </div>
+    </div>
+</header>
+
+<!-- MAIN APP CONTAINER -->
+<div class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+
+    <!-- LEFT / CENTER: VIEWPORT + TIMELINE COLUMN -->
+    <div class="flex-1 flex flex-col overflow-hidden relative">
+
+        <!-- VIEWPORT / SIMULATION CANVAS -->
+        <main class="flex-1 checkerboard relative flex items-center justify-center overflow-hidden cursor-crosshair" id="viewportContainer">
+            <canvas id="simCanvas" class="w-full h-full object-contain"></canvas>
+
+            <!-- CAMERA GIMBAL / RETICLE HUD OVERLAY -->
+            <div id="cameraHudOverlay" class="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <!-- Outer 360° Compass Ring -->
+                <div id="gimbalRing" class="w-56 h-56 sm:w-72 sm:h-72 rounded-full border border-cyan-400/20 relative flex items-center justify-center transition-transform duration-75">
+                    <div class="absolute -top-2.5 text-[9px] text-cyan-400/80 font-bold tracking-widest bg-gray-950/80 px-1 rounded">0° N</div>
+                    <div class="absolute -bottom-2.5 text-[9px] text-gray-500 font-bold">180°</div>
+                    <div class="absolute -left-3 text-[9px] text-gray-500 font-bold">270°</div>
+                    <div class="absolute -right-3 text-[9px] text-gray-500 font-bold">90°</div>
+                    <!-- Crosshair lines -->
+                    <div class="w-4 h-[1px] bg-cyan-400/50"></div>
+                    <div class="h-4 w-[1px] bg-cyan-400/50 absolute"></div>
+                </div>
+                <!-- Target / Tracking Indicator Marker -->
+                <div id="targetMarker" class="absolute w-5 h-5 -translate-x-1/2 -translate-y-1/2 border border-amber-400/80 rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(251,191,36,0.4)]" style="left: 50%; top: 50%;">
+                    <div class="w-1 h-1 bg-amber-400 rounded-full"></div>
+                </div>
+                <!-- Bottom-Right Live Camera Telemetry Badge -->
+                <div class="absolute bottom-3 right-3 glass-panel px-3 py-1.5 rounded text-[10px] text-gray-300 flex items-center gap-3">
+                    <span>MODE: <strong id="hudTrackMode" class="text-amber-400">MANUAL</strong></span>
+                    <span>•</span>
+                    <span>TGT: <strong id="hudTargetCoords" class="text-cyan-300">0.50, 0.50</strong></span>
+                    <span>•</span>
+                    <span>ROT: <strong id="hudAngle" class="text-cyan-300">0.0°</strong></span>
+                    <span>•</span>
+                    <span>ZOOM: <strong id="hudZoom" class="text-cyan-300">1.00x</strong></span>
+                </div>
+            </div>
+
+            <!-- FLOATING CONTROLS LEGEND -->
+            <div class="absolute top-3 left-3 glass-panel px-3.5 py-2.5 rounded-lg pointer-events-none text-[11px] flex flex-col gap-1 shadow-2xl max-w-xs">
+                <div class="text-cyan-400 font-bold uppercase tracking-wider mb-0.5 flex items-center justify-between gap-4">
+                    <span>VIEWPORT CONTROLS</span>
+                    <button id="toggleHudBtn" class="pointer-events-auto text-[9px] px-1.5 py-0.5 cyber-btn rounded active">HUD ON</button>
+                </div>
+                <div class="text-gray-300"><b>Left Drag</b>: Inject Smoke (Camera-Tracked)</div>
+                <div class="text-gray-300"><b>Right Drag</b>: Vortex Swirl Force</div>
+                <div class="text-gray-300"><b>Shift + Drag / Middle</b>: Pan Camera</div>
+                <div class="text-gray-300"><b>Scroll Wheel</b>: Zoom | <b>Space</b>: Pause Sim</div>
+            </div>
+
+            <!-- RECORDING / RENDERING PROGRESS TOAST -->
+            <div id="recordingToast" class="absolute top-3 right-3 glass-panel px-4 py-2.5 rounded-lg text-xs hidden items-center gap-3 border border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.35)] z-20">
+                <div class="w-2.5 h-2.5 bg-red-500 rounded-full animate-ping"></div>
+                <div class="flex flex-col">
+                    <span id="recordingToastTitle" class="text-red-400 font-bold">RENDERING TIMELINE SEQUENCE...</span>
+                    <span id="recordedCount" class="text-white font-mono text-[11px]">Frame 0 / 240</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- KEYFRAME AUTOMATION TIMELINE BAR -->
+        <section class="h-36 sm:h-32 glass-panel border-t border-cyan-500/25 px-4 py-2.5 flex flex-col justify-between z-20 shrink-0">
+            <!-- Top Row: Transport, Duration, Curve, Presets -->
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-cyan-400 font-bold tracking-wider text-[11px] mr-1 hidden lg:inline">TIMELINE</span>
+                    <button id="tlPlayBtn" class="px-2.5 py-1 cyber-btn rounded font-bold text-[11px] flex items-center gap-1.5" title="Play / Pause Keyframe Timeline">
+                        <span id="tlPlayIcon">▶</span>
+                        <span id="tlPlayText">PLAY</span>
+                    </button>
+                    <button id="tlStopBtn" class="px-2 py-1 cyber-btn rounded text-[11px]" title="Stop & Reset to 0.00s">■ 0s</button>
+                    <button id="tlLoopBtn" class="px-2 py-1 cyber-btn active rounded text-[11px]" title="Toggle Timeline Loop">↻ LOOP</button>
+
+                    <div class="flex items-center gap-1.5 ml-2 bg-gray-950/90 border border-gray-800 px-2 py-0.5 rounded font-mono text-[11px]">
+                        <span id="tlCurrentTime" class="text-cyan-400 font-bold">00.00s</span>
+                        <span class="text-gray-600">/</span>
+                        <input type="number" id="tlDurationInput" min="2" max="60" step="0.5" value="8.0" class="w-11 bg-transparent text-gray-200 text-right focus:outline-none focus:text-cyan-400" title="Timeline Duration (seconds)">
+                        <span class="text-gray-500">s</span>
+                    </div>
+                </div>
+
+                <!-- Right Side: Keyframe & Preset Actions -->
+                <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <select id="tlInterpSelect" class="cyber-input px-2 py-1 rounded text-[11px]" title="Keyframe Interpolation Curve">
+                        <option value="smoothstep">Curve: Smoothstep</option>
+                        <option value="easeInOut">Curve: Ease In-Out</option>
+                        <option value="linear">Curve: Linear</option>
+                    </select>
+
+                    <button id="addKeyframeBtn" class="px-2.5 py-1 cyber-btn rounded font-bold text-amber-400 border-amber-500/40 hover:border-amber-400" title="Record Camera & Emitter state at current time">
+                        ◆ + KEYFRAME
+                    </button>
+                    <button id="delKeyframeBtn" class="px-2 py-1 cyber-btn rounded text-[11px]" disabled title="Delete selected keyframe">
+                        DEL
+                    </button>
+                    <button id="preset360Btn" class="px-2.5 py-1 cyber-btn rounded font-bold text-cyan-300 border-cyan-500/40" title="Generate a smooth 0° to 360° camera orbit across the timeline">
+                        ⟳ 360° ORBIT PRESET
+                    </button>
+                    <button id="clearKeyframesBtn" class="px-2 py-1 cyber-btn rounded text-[11px] text-gray-400" title="Clear all keyframes">
+                        CLEAR
+                    </button>
+                </div>
+            </div>
+
+            <!-- Middle Row: Scrubbable Track + Keyframe Diamonds -->
+            <div class="relative w-full h-9 flex items-center select-none my-0.5" id="timelineTrackContainer">
+                <!-- Background Ruler Ticks -->
+                <div id="timelineRuler" class="absolute inset-x-0 top-0 h-3 flex justify-between text-[9px] text-gray-500 pointer-events-none px-0.5"></div>
+
+                <!-- Track Bar -->
+                <div id="timelineTrack" class="w-full h-3.5 bg-gray-950 border border-gray-800 rounded-full relative cursor-pointer mt-2 overflow-visible">
+                    <!-- Active Progress Fill -->
+                    <div id="timelineProgress" class="h-full bg-gradient-to-r from-cyan-600/40 to-cyan-400/60 rounded-l-full pointer-events-none" style="width: 0%;"></div>
+
+                    <!-- Keyframe Markers Container -->
+                    <div id="keyframeMarkersLayer" class="absolute inset-0"></div>
+
+                    <!-- Playhead Needle -->
+                    <div id="timelinePlayhead" class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-5 bg-cyan-400 rounded-sm shadow-[0_0_10px_#22d3ee] pointer-events-none z-10 flex items-center justify-center" style="left: 0%;">
+                        <div class="w-[1px] h-3 bg-gray-950"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Row: Active Keyframe Info -->
+            <div class="flex items-center justify-between text-[10px] text-gray-400">
+                <div id="kfSelectionStatus">No keyframe selected — click <span class="text-amber-400">◆ + KEYFRAME</span> or <span class="text-cyan-400">⟳ 360° ORBIT PRESET</span> to automate camera.</div>
+                <div class="hidden sm:block text-gray-500">Keyframes animate: Camera Angle (360°), Zoom, Target X/Y &amp; Emitter X/Y</div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- RIGHT CONTROL PANEL -->
+    <aside class="w-full md:w-80 lg:w-84 glass-panel border-t md:border-t-0 md:border-l border-cyan-500/20 flex flex-col z-20 overflow-y-auto shrink-0 max-h-[45vh] md:max-h-none">
+        <div class="p-3.5 border-b border-gray-800 font-bold text-xs uppercase tracking-widest text-cyan-400 flex items-center justify-between sticky top-0 bg-gray-950/95 z-10">
+            <span>Camera &amp; Fluid Controls</span>
+            <div class="flex gap-1.5">
+                <button id="resetCamBtn" class="text-[10px] px-2 py-1 cyber-btn rounded" title="Reset Camera Rig">RESET CAM</button>
+                <button id="resetSimBtn" class="text-[10px] px-2 py-1 cyber-btn rounded" title="Clear Fluid Field">RESET SIM</button>
+            </div>
+        </div>
+
+        <div class="p-3.5 flex flex-col gap-4 text-xs">
+
+            <!-- 2D CAMERA RIG & TRACKING SYSTEM -->
+            <div class="flex flex-col gap-2.5 p-3 bg-gray-950/80 rounded-lg border border-cyan-500/35 shadow-[0_0_15px_rgba(6,182,212,0.08)]">
+                <div class="font-bold text-cyan-400 tracking-wider flex items-center justify-between">
+                    <span>2D CAMERA RIG (360°)</span>
+                    <span id="camAngleBadge" class="text-[10px] px-1.5 py-0.5 bg-cyan-950 text-cyan-300 rounded border border-cyan-800">0.0°</span>
+                </div>
+
+                <!-- Tracking Mode -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-gray-400 text-[11px]">Target Tracking System</label>
+                    <select id="camTrackModeSelect" class="cyber-input px-2.5 py-1.5 rounded text-xs">
+                        <option value="manual">Manual Target (Pan / Keyframes)</option>
+                        <option value="emitter">Track Emitter Nozzle</option>
+                        <option value="plume">Track Rising Plume Center</option>
+                    </select>
+                </div>
+
+                <!-- Tracking Smoothness / Damping -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Tracking Damping</span>
+                        <span id="camDampingVal" class="text-cyan-300">0.12</span>
+                    </div>
+                    <input type="range" id="camDampingSlider" min="0.02" max="1.0" step="0.02" value="0.12" class="cursor-pointer">
+                </div>
+
+                <!-- 360° Rotation Slider -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Camera Rotation (0°–360°)</span>
+                        <span id="camAngleVal" class="text-cyan-300">0.0°</span>
+                    </div>
+                    <input type="range" id="camAngleSlider" min="0" max="360" step="0.5" value="0" class="cursor-pointer">
+                </div>
+
+                <!-- Continuous Auto-Spin Speed -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Continuous Auto-Spin (°/s)</span>
+                        <span id="camAutoSpinVal" class="text-amber-300">0°/s</span>
+                    </div>
+                    <input type="range" id="camAutoSpinSlider" min="-180" max="180" step="5" value="0" class="cursor-pointer">
+                </div>
+
+                <!-- Camera Zoom -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Camera Zoom</span>
+                        <span id="camZoomVal" class="text-cyan-300">1.00x</span>
+                    </div>
+                    <input type="range" id="camZoomSlider" min="0.5" max="4.0" step="0.05" value="1.0" class="cursor-pointer">
+                </div>
+
+                <!-- Camera Pan / Target X & Y -->
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    <div class="flex flex-col gap-1">
+                        <div class="flex justify-between text-gray-400 text-[11px]">
+                            <span>Target X</span>
+                            <span id="camTargetXVal" class="text-cyan-300">0.50</span>
+                        </div>
+                        <input type="range" id="camTargetXSlider" min="0.0" max="1.0" step="0.01" value="0.50" class="cursor-pointer">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <div class="flex justify-between text-gray-400 text-[11px]">
+                            <span>Target Y</span>
+                            <span id="camTargetYVal" class="text-cyan-300">0.50</span>
+                        </div>
+                        <input type="range" id="camTargetYSlider" min="0.0" max="1.0" step="0.01" value="0.50" class="cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- Edge Vignette / Border Fade -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>360° Edge Border Fade</span>
+                        <span id="camBorderFadeVal" class="text-cyan-300">0.08</span>
+                    </div>
+                    <input type="range" id="camBorderFadeSlider" min="0.0" max="0.25" step="0.01" value="0.08" class="cursor-pointer">
+                </div>
+            </div>
+
+            <!-- FRAME-LOCKED PNG SEQUENCE EXPORTER -->
+            <div class="flex flex-col gap-2.5 p-3 bg-gray-950/70 rounded-lg border border-amber-500/35">
+                <div class="font-bold text-amber-400 tracking-wider flex items-center justify-between">
+                    <span>PNG SEQUENCE EXPORTER</span>
+                    <span class="text-[9px] px-1.5 py-0.5 bg-amber-950 text-amber-300 rounded border border-amber-800">32-BIT RGBA</span>
+                </div>
+
+                <div class="flex items-center justify-between gap-2">
+                    <label class="text-gray-400 text-[11px]">Export Rate</label>
+                    <select id="exportFpsSelect" class="cyber-input px-2 py-1 rounded text-xs">
+                        <option value="24">24 FPS (Cinema)</option>
+                        <option value="30" selected>30 FPS (Standard)</option>
+                        <option value="60">60 FPS (Smooth)</option>
+                    </select>
+                </div>
+
+                <div class="flex flex-col gap-1.5 mt-0.5">
+                    <button id="renderTimelineBtn" class="w-full py-2 cyber-btn font-bold rounded flex items-center justify-center gap-2 text-xs text-amber-300 border-amber-500/40">
+                        <span>🎬 RENDER TIMELINE SEQUENCE</span>
+                    </button>
+                    <div class="flex gap-2">
+                        <button id="toggleRecordBtn" class="flex-1 py-1.5 cyber-btn font-bold rounded flex items-center justify-center gap-1.5 text-[11px]">
+                            <span id="recordBtnIcon" class="w-2 h-2 rounded-full bg-red-500"></span>
+                            <span id="recordBtnText">LIVE REC</span>
+                        </button>
+                        <button id="downloadZipBtn" class="flex-1 py-1.5 cyber-btn font-bold rounded text-[11px]" disabled>
+                            DOWNLOAD ZIP
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DOMAIN SIZE -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-gray-300 font-semibold flex justify-between">
+                    <span>Domain Resolution</span>
+                    <span id="gridSizeVal" class="text-cyan-400">256</span>
+                </label>
+                <select id="gridSizeSelect" class="cyber-input px-3 py-1.5 rounded text-xs">
+                    <option value="128">128 x 128 (Ultra Fast)</option>
+                    <option value="256" selected>256 x 256 (Balanced)</option>
+                    <option value="512">512 x 512 (High Fidelity)</option>
+                    <option value="1024">1024 x 1024 (RTX 4090 Extreme)</option>
+                </select>
+            </div>
+
+            <!-- EMITTER SOURCE CONTROLS -->
+            <div class="flex flex-col gap-2.5 p-3 bg-gray-950/60 rounded-lg border border-gray-800/80">
+                <div class="font-bold text-cyan-400 tracking-wider flex items-center justify-between">
+                    <span>EMITTER SOURCE</span>
+                    <label class="flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer font-normal">
+                        <input type="checkbox" id="emitterActiveToggle" checked class="accent-cyan-400 cursor-pointer">
+                        <span>ACTIVE</span>
+                    </label>
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Source Position X</span>
+                        <span id="emitXVal" class="text-cyan-300">0.50</span>
+                    </div>
+                    <input type="range" id="emitXSlider" min="0.05" max="0.95" step="0.01" value="0.50" class="cursor-pointer">
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Source Position Y</span>
+                        <span id="emitYVal" class="text-cyan-300">0.12</span>
+                    </div>
+                    <input type="range" id="emitYSlider" min="0.02" max="0.90" step="0.01" value="0.12" class="cursor-pointer">
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Nozzle Radius</span>
+                        <span id="emitRadiusVal" class="text-cyan-300">0.020</span>
+                    </div>
+                    <input type="range" id="emitRadiusSlider" min="0.005" max="0.060" step="0.001" value="0.020" class="cursor-pointer">
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Source Sway (Oscillation)</span>
+                        <span id="emitSwayVal" class="text-cyan-300">0.00</span>
+                    </div>
+                    <input type="range" id="emitSwaySlider" min="0.0" max="0.25" step="0.01" value="0.0" class="cursor-pointer">
+                </div>
+            </div>
+
+            <!-- WIND & FORCE -->
+            <div class="flex flex-col gap-2.5 p-3 bg-gray-950/60 rounded-lg border border-gray-800/80">
+                <div class="font-bold text-cyan-400 tracking-wider">WIND &amp; BUOYANCY</div>
+                
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Wind Force X</span>
+                        <span id="windXVal" class="text-cyan-300">0.00</span>
+                    </div>
+                    <input type="range" id="windXSlider" min="-5" max="5" step="0.1" value="0.0" class="cursor-pointer">
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Wind Force Y (Updraft)</span>
+                        <span id="windYVal" class="text-cyan-300">0.80</span>
+                    </div>
+                    <input type="range" id="windYSlider" min="-5" max="5" step="0.1" value="0.8" class="cursor-pointer">
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Buoyancy (Temperature)</span>
+                        <span id="buoyancyVal" class="text-cyan-300">1.2</span>
+                    </div>
+                    <input type="range" id="buoyancySlider" min="0" max="5" step="0.1" value="1.2" class="cursor-pointer">
+                </div>
+            </div>
+
+            <!-- DISPERSION & TURBULENCE -->
+            <div class="flex flex-col gap-2.5 p-3 bg-gray-950/60 rounded-lg border border-gray-800/80">
+                <div class="font-bold text-cyan-400 tracking-wider">DISPERSION &amp; TURBULENCE</div>
+                
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Smoke Dissipation</span>
+                        <span id="dissipationVal" class="text-cyan-300">0.992</span>
+                    </div>
+                    <input type="range" id="dissipationSlider" min="0.950" max="0.999" step="0.001" value="0.992" class="cursor-pointer">
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Vorticity (Swirl)</span>
+                        <span id="vorticityVal" class="text-cyan-300">25.0</span>
+                    </div>
+                    <input type="range" id="vorticitySlider" min="0" max="60" step="1" value="25.0" class="cursor-pointer">
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Noise Turbulence</span>
+                        <span id="turbulenceVal" class="text-cyan-300">1.5</span>
+                    </div>
+                    <input type="range" id="turbulenceSlider" min="0" max="5" step="0.1" value="1.5" class="cursor-pointer">
+                </div>
+            </div>
+
+            <!-- RENDER SHADING & COLOR -->
+            <div class="flex flex-col gap-2.5 p-3 bg-gray-950/60 rounded-lg border border-gray-800/80">
+                <div class="font-bold text-cyan-400 tracking-wider">SHADING &amp; PALETTE</div>
+                
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">Smoke Color</span>
+                    <input type="color" id="smokeColorInput" value="#00ffff" class="w-10 h-7 bg-transparent cursor-pointer rounded border border-gray-700">
+                </div>
+
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-gray-400">
+                        <span>Density / Opacity</span>
+                        <span id="densityVal" class="text-cyan-300">1.8</span>
+                    </div>
+                    <input type="range" id="densitySlider" min="0.5" max="4.0" step="0.1" value="1.8" class="cursor-pointer">
+                </div>
+            </div>
+
+        </div>
+    </aside>
+
+</div>
+
+<!-- FOOTER STATUS BAR -->
+<footer class="h-7 bg-gray-950 border-t border-gray-800 px-4 lg:px-6 flex items-center justify-between text-[10px] text-gray-400 z-30 shrink-0">
+    <div class="flex items-center gap-3">
+        <span>STATUS: <strong id="simStatusText" class="text-emerald-400">RUNNING</strong></span>
+        <span>•</span>
+        <span class="hidden sm:inline">CAMERA RIG: 360° ROTATION + KEYFRAME TRACKER ACTIVE</span>
+    </div>
+    <div>
+        <span>GPU FLUID SOLVER v3.0 // WEBGL 2.0</span>
+    </div>
+</footer>
+
+<!-- External JSZip for Sequence Export -->
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+<script>
+/* ============================================================================
+   GPU-ACCELERATED WEBGL 2.0 FLUID & SMOKE SIMULATION + 360° CAMERA & TIMELINE
+   ============================================================================ */
+
+const canvas = document.getElementById('simCanvas');
+const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true });
+
+if (!gl) {
+    const toast = document.getElementById('recordingToast');
+    toast.classList.remove('hidden');
+    toast.classList.add('flex');
+    document.getElementById('recordingToastTitle').textContent = 'WebGL 2.0 is required for this simulator.';
+}
+
+// Enable floating-point color buffers and linear filtering
+const extFloat = gl.getExtension('EXT_color_buffer_float');
+gl.getExtension('OES_texture_float_linear');
+
+// ============================================================================
+// SIMULATION, CAMERA RIG & TIMELINE STATE
+// ============================================================================
+
+let simParams = {
+    resolution: 256,
+    emitterActive: true,
+    emitX: 0.50,
+    emitY: 0.12,
+    emitRadius: 0.020,
+    emitSway: 0.0,
+    windX: 0.0,
+    windY: 0.8,
+    buoyancy: 1.2,
+    dissipation: 0.992,
+    vorticity: 25.0,
+    turbulence: 1.5,
+    smokeColor: [0.0, 1.0, 1.0],
+    densityScale: 1.8,
+    paused: false
+};
+
+// 2D Camera Rig State
+let cameraState = {
+    targetX: 0.50,
+    targetY: 0.50,
+    desiredTargetX: 0.50,
+    desiredTargetY: 0.50,
+    zoom: 1.0,
+    angleDeg: 0.0,       // Continuous angle in degrees (can exceed 360 for multi-turn spins)
+    autoSpinSpeed: 0.0,  // Degrees per second
+    trackMode: 'manual', // 'manual' | 'emitter' | 'plume'
+    damping: 0.12,       // Smoothing factor [0.02 .. 1.0]
+    borderFade: 0.08,    // Smooth alpha fade near domain edges [0 .. 0.25]
+    showHud: true
+};
+
+// Keyframe Timeline State
+let timelineState = {
+    currentTime: 0.0,
+    duration: 8.0,
+    isPlaying: false,
+    loop: true,
+    interpolation: 'smoothstep', // 'smoothstep' | 'easeInOut' | 'linear'
+    selectedKeyframeId: null,
+    keyframes: []
+};
+
+let simClock = 0.0; // Deterministic simulation clock (seconds)
+let gridRes = simParams.resolution;
+let width = gridRes, height = gridRes;
+
+// Mouse / Touch Interaction State
+let isPointerDown = false;
+let pointerMode = 'smoke'; // 'smoke' | 'vortex' | 'pan'
+let pointerWorldPos = { x: 0.5, y: 0.5 };
+let prevPointerWorldPos = { x: 0.5, y: 0.5 };
+let panStartScreen = { x: 0, y: 0 };
+let panStartTarget = { x: 0.5, y: 0.5 };
+
+// Recording / Rendering State
+let isRecording = false;
+let isRenderingTimeline = false;
+let recordedFrames = [];
+let recordIntervalId = null;
+
+// ============================================================================
+// SHADER SOURCES (INCLUDING 2D CAMERA MATRIX & BORDER FADE IN DISPLAY SHADER)
+// ============================================================================
+
+const vsSource = `#version 300 es
+in vec2 aPosition;
+out vec2 vUv;
+void main() {
+    vUv = aPosition * 0.5 + 0.5;
+    gl_Position = vec4(aPosition, 0.0, 1.0);
+}`;
+
+const advectShaderSource = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 fragColor;
+uniform sampler2D uVelocity;
+uniform sampler2D uSource;
+uniform vec2 uTexelSize;
+uniform float uDt;
+uniform float uDissipation;
+
+void main() {
+    vec2 coord = vUv - uDt * texture(uVelocity, vUv).xy * uTexelSize;
+    fragColor = uDissipation * texture(uSource, coord);
+}`;
+
+const divergenceShaderSource = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 fragColor;
+uniform sampler2D uVelocity;
+uniform vec2 uTexelSize;
+
+void main() {
+    float L = texture(uVelocity, vUv - vec2(uTexelSize.x, 0.0)).x;
+    float R = texture(uVelocity, vUv + vec2(uTexelSize.x, 0.0)).x;
+    float T = texture(uVelocity, vUv + vec2(0.0, uTexelSize.y)).y;
+    float B = texture(uVelocity, vUv - vec2(0.0, uTexelSize.y)).y;
+    
+    vec2 C = texture(uVelocity, vUv).xy;
+    if (vUv.x < uTexelSize.x) L = -C.x;
+    if (vUv.x > 1.0 - uTexelSize.x) R = -C.x;
+    if (vUv.y < uTexelSize.y) B = -C.y;
+    if (vUv.y > 1.0 - uTexelSize.y) T = -C.y;
+
+    float div = 0.5 * (R - L + T - B);
+    fragColor = vec4(div, 0.0, 0.0, 1.0);
+}`;
+
+const vorticityShaderSource = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 fragColor;
+uniform sampler2D uVelocity;
+uniform vec2 uTexelSize;
+
+void main() {
+    float L = texture(uVelocity, vUv - vec2(uTexelSize.x, 0.0)).y;
+    float R = texture(uVelocity, vUv + vec2(uTexelSize.x, 0.0)).y;
+    float T = texture(uVelocity, vUv + vec2(0.0, uTexelSize.y)).x;
+    float B = texture(uVelocity, vUv - vec2(0.0, uTexelSize.y)).x;
+    float vorticity = R - L - (T - B);
+    fragColor = vec4(vorticity, 0.0, 0.0, 1.0);
+}`;
+
+const vorticityConfinementShaderSource = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 fragColor;
+uniform sampler2D uVelocity;
+uniform sampler2D uVorticity;
+uniform vec2 uTexelSize;
+uniform float uCurl;
+uniform float uDt;
+
+void main() {
+    float L = texture(uVorticity, vUv - vec2(uTexelSize.x, 0.0)).x;
+    float R = texture(uVorticity, vUv + vec2(uTexelSize.x, 0.0)).x;
+    float T = texture(uVorticity, vUv + vec2(0.0, uTexelSize.y)).x;
+    float B = texture(uVorticity, vUv - vec2(0.0, uTexelSize.y)).x;
+    float C = texture(uVorticity, vUv).x;
+
+    vec2 grad = 0.5 * vec2(abs(R) - abs(L), abs(T) - abs(B));
+    float len = length(grad) + 1e-5;
+    grad /= len;
+
+    vec2 vScale = vec2(grad.y, -grad.x) * C * uCurl;
+    vec2 vel = texture(uVelocity, vUv).xy + vScale * uDt;
+    fragColor = vec4(vel, 0.0, 1.0);
+}`;
+
+const pressureShaderSource = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 fragColor;
+uniform sampler2D uPressure;
+uniform sampler2D uDivergence;
+uniform vec2 uTexelSize;
+
+void main() {
+    float L = texture(uPressure, vUv - vec2(uTexelSize.x, 0.0)).x;
+    float R = texture(uPressure, vUv + vec2(uTexelSize.x, 0.0)).x;
+    float T = texture(uPressure, vUv + vec2(0.0, uTexelSize.y)).x;
+    float B = texture(uPressure, vUv - vec2(0.0, uTexelSize.y)).x;
+    float divergence = texture(uDivergence, vUv).x;
+    
+    float pressure = (L + R + T + B - divergence) * 0.25;
+    fragColor = vec4(pressure, 0.0, 0.0, 1.0);
+}`;
+
+const gradientSubtractShaderSource = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 fragColor;
+uniform sampler2D uPressure;
+uniform sampler2D uVelocity;
+uniform vec2 uTexelSize;
+
+void main() {
+    float L = texture(uPressure, vUv - vec2(uTexelSize.x, 0.0)).x;
+    float R = texture(uPressure, vUv + vec2(uTexelSize.x, 0.0)).x;
+    float T = texture(uPressure, vUv + vec2(0.0, uTexelSize.y)).x;
+    float B = texture(uPressure, vUv - vec2(0.0, uTexelSize.y)).x;
+    
+    vec2 vel = texture(uVelocity, vUv).xy;
+    vel -= 0.5 * vec2(R - L, T - B);
+    fragColor = vec4(vel, 0.0, 1.0);
+}`;
+
+const splatShaderSource = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 fragColor;
+uniform sampler2D uTarget;
+uniform vec2 uPoint;
+uniform vec3 uColor;
+uniform float uRadius;
+
+void main() {
+    vec4 base = texture(uTarget, vUv);
+    float dist = distance(vUv, uPoint);
+    vec3 splat = uColor * exp(-dist * dist / (uRadius * uRadius + 1e-5));
+    fragColor = base + vec4(splat, 1.0);
+}`;
+
+const buoyancyShaderSource = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 fragColor;
+uniform sampler2D uVelocity;
+uniform sampler2D uSmoke;
+uniform float uBuoyancy;
+uniform float uDt;
+uniform vec2 uWind;
+uniform float uTurbulence;
+uniform float uTime;
+
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+void main() {
+    vec2 vel = texture(uVelocity, vUv).xy;
+    float smoke = texture(uSmoke, vUv).r;
+    
+    vec2 nCoord = vUv * 8.0 + vec2(0.0, -uTime * 1.5);
+    float nx = noise(nCoord) * 2.0 - 1.0;
+    float ny = noise(nCoord + vec2(31.4, 17.2)) * 2.0 - 1.0;
+    vec2 turbForce = vec2(nx, ny) * uTurbulence * smoke * 18.0;
+
+    vel += (uWind + vec2(0.0, smoke * uBuoyancy * 25.0) + turbForce) * uDt;
+    fragColor = vec4(vel, 0.0, 1.0);
+}`;
+
+// Enhanced 2D Camera Display Shader with Target Pan, Zoom, 360° Rotation & Edge Border Fade
+const displayShaderSource = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 fragColor;
+
+uniform sampler2D uSmoke;
+uniform vec3 uSmokeColor;
+uniform float uDensityScale;
+
+// 2D Camera Rig Uniforms
+uniform vec2 uCamTarget;
+uniform float uCamZoom;
+uniform float uCamAngle;
+uniform float uBorderFade;
+
+void main() {
+    // Center coordinates around screen midpoint (0.5, 0.5)
+    vec2 centered = (vUv - 0.5) / max(uCamZoom, 0.05);
+
+    // Rotate by -uCamAngle so positive angle rotates camera clockwise (scene counter-clockwise)
+    float c = cos(-uCamAngle);
+    float s = sin(-uCamAngle);
+    vec2 rotated = vec2(
+        centered.x * c - centered.y * s,
+        centered.x * s + centered.y * c
+    );
+
+    // Offset by camera target position in fluid domain [0..1]
+    vec2 simUv = rotated + uCamTarget;
+
+    // Smooth edge mask so 360° rotation or zoom-out never clips harshly at domain boundaries
+    float fade = max(uBorderFade, 0.001);
+    vec2 edgeMin = smoothstep(0.0, fade, simUv);
+    vec2 edgeMax = smoothstep(0.0, fade, 1.0 - simUv);
+    float domainMask = edgeMin.x * edgeMin.y * edgeMax.x * edgeMax.y;
+
+    float density = texture(uSmoke, clamp(simUv, 0.0, 1.0)).r * uDensityScale * domainMask;
+    vec3 color = uSmokeColor * density;
+    fragColor = vec4(color, clamp(density, 0.0, 1.0));
+}`;
+
+// ============================================================================
+// WEBGL UTILITIES & FRAMEBUFFER SETUP
+// ============================================================================
+
+function compileShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+    }
+    return shader;
+}
+
+function createProgram(gl, vsSrc, fsSrc) {
+    const vs = compileShader(gl, gl.VERTEX_SHADER, vsSrc);
+    const fs = compileShader(gl, gl.FRAGMENT_SHADER, fsSrc);
+    if (!vs || !fs) return null;
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        console.error('Program link error:', gl.getProgramInfoLog(prog));
+        return null;
+    }
+    return prog;
+}
+
+let programs = {};
+function initShaders() {
+    programs.advect = createProgram(gl, vsSource, advectShaderSource);
+    programs.divergence = createProgram(gl, vsSource, divergenceShaderSource);
+    programs.vorticity = createProgram(gl, vsSource, vorticityShaderSource);
+    programs.vorticityConfinement = createProgram(gl, vsSource, vorticityConfinementShaderSource);
+    programs.pressure = createProgram(gl, vsSource, pressureShaderSource);
+    programs.gradientSubtract = createProgram(gl, vsSource, gradientSubtractShaderSource);
+    programs.splat = createProgram(gl, vsSource, splatShaderSource);
+    programs.buoyancy = createProgram(gl, vsSource, buoyancyShaderSource);
+    programs.display = createProgram(gl, vsSource, displayShaderSource);
+}
+
+const quadBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+
+function bindQuad(prog) {
+    const aPosLoc = gl.getAttribLocation(prog, 'aPosition');
+    gl.enableVertexAttribArray(aPosLoc);
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+    gl.vertexAttribPointer(aPosLoc, 2, gl.FLOAT, false, 0, 0);
+}
+
+function createTexture(w, h, internalFormat, format, type) {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, w, h, 0, format, type, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return tex;
+}
+
+function createFBO(tex) {
+    const fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    return fbo;
+}
+
+function createSingleFBO(w, h, internalFormat, format, type) {
+    const tex = createTexture(w, h, internalFormat, format, type);
+    const fbo = createFBO(tex);
+    return { tex, fbo };
+}
+
+function createDoubleFBO(w, h, internalFormat, format, type) {
+    let tex1 = createTexture(w, h, internalFormat, format, type);
+    let tex2 = createTexture(w, h, internalFormat, format, type);
+    let fbo1 = createFBO(tex1);
+    let fbo2 = createFBO(tex2);
+    return {
+        get read() { return { tex: tex1, fbo: fbo1 }; },
+        get write() { return { tex: tex2, fbo: fbo2 }; },
+        swap() {
+            let tempTex = tex1; tex1 = tex2; tex2 = tempTex;
+            let tempFbo = fbo1; fbo1 = fbo2; fbo2 = tempFbo;
+        }
+    };
+}
+
+let velocityFBO, smokeFBO, divergenceFBO, vorticityFBO, pressureFBO;
+
+function initFBOs() {
+    width = gridRes;
+    height = gridRes;
+    canvas.width = width;
+    canvas.height = height;
+
+    velocityFBO = createDoubleFBO(width, height, gl.RG16F, gl.RG, gl.FLOAT);
+    smokeFBO = createDoubleFBO(width, height, gl.R16F, gl.RED, gl.FLOAT);
+    divergenceFBO = createSingleFBO(width, height, gl.R16F, gl.RED, gl.FLOAT);
+    vorticityFBO = createSingleFBO(width, height, gl.R16F, gl.RED, gl.FLOAT);
+    pressureFBO = createDoubleFBO(width, height, gl.R16F, gl.RED, gl.FLOAT);
+    simClock = 0.0;
+}
+
+initShaders();
+initFBOs();
+
+// ============================================================================
+// 2D CAMERA COORDINATE TRANSFORMS (SCREEN UV <-> FLUID DOMAIN UV)
+// ============================================================================
+
+function screenUvToDomainUv(screenUvX, screenUvY) {
+    // Matches the exact inverse of the display fragment shader transform
+    const centeredX = (screenUvX - 0.5) / Math.max(cameraState.zoom, 0.05);
+    const centeredY = (screenUvY - 0.5) / Math.max(cameraState.zoom, 0.05);
+    const rad = -(cameraState.angleDeg * Math.PI) / 180.0;
+    const c = Math.cos(rad);
+    const s = Math.sin(rad);
+    const rotX = centeredX * c - centeredY * s;
+    const rotY = centeredX * s + centeredY * c;
+    return {
+        x: rotX + cameraState.targetX,
+        y: rotY + cameraState.targetY
+    };
+}
+
+function getActiveEmitterPosition() {
+    const swayOffset = Math.sin(simClock * 2.5) * simParams.emitSway;
+    return {
+        x: Math.max(0.02, Math.min(0.98, simParams.emitX + swayOffset)),
+        y: simParams.emitY
+    };
+}
+
+function updateCameraRig(dt) {
+    // 1. Continuous Auto-Spin (when not overridden by active timeline keyframes)
+    if (cameraState.autoSpinSpeed !== 0 && !(timelineState.isPlaying && timelineState.keyframes.length >= 2)) {
+        cameraState.angleDeg = (cameraState.angleDeg + cameraState.autoSpinSpeed * dt) % 360;
+        if (cameraState.angleDeg < 0) cameraState.angleDeg += 360;
+    }
+
+    // 2. Target Tracking Modes
+    if (cameraState.trackMode === 'emitter') {
+        const em = getActiveEmitterPosition();
+        cameraState.desiredTargetX = em.x;
+        cameraState.desiredTargetY = em.y;
+    } else if (cameraState.trackMode === 'plume') {
+        // Track rising plume center of mass offset by buoyancy & wind
+        const em = getActiveEmitterPosition();
+        const windDriftX = simParams.windX * 0.04;
+        const plumeRiseY = Math.min(0.88, em.y + 0.16 + simParams.buoyancy * 0.05 + simParams.windY * 0.04);
+        cameraState.desiredTargetX = Math.max(0.05, Math.min(0.95, em.x + windDriftX));
+        cameraState.desiredTargetY = plumeRiseY;
+    }
+
+    // 3. Exponential Damping toward Desired Target
+    if (cameraState.trackMode !== 'manual') {
+        const alpha = 1.0 - Math.pow(1.0 - cameraState.damping, dt * 60.0);
+        cameraState.targetX += (cameraState.desiredTargetX - cameraState.targetX) * alpha;
+        cameraState.targetY += (cameraState.desiredTargetY - cameraState.targetY) * alpha;
+    }
+
+    syncCameraUI();
+}
+
+function syncCameraUI() {
+    const normalizedAngle = ((cameraState.angleDeg % 360) + 360) % 360;
+    document.getElementById('camAngleSlider').value = normalizedAngle;
+    document.getElementById('camAngleVal').textContent = `${cameraState.angleDeg.toFixed(1)}°`;
+    document.getElementById('camAngleBadge').textContent = `${normalizedAngle.toFixed(1)}°`;
+    document.getElementById('headerCamReadout').textContent = `${normalizedAngle.toFixed(0)}° | ${cameraState.zoom.toFixed(2)}x`;
+
+    document.getElementById('camZoomSlider').value = cameraState.zoom;
+    document.getElementById('camZoomVal').textContent = `${cameraState.zoom.toFixed(2)}x`;
+
+    document.getElementById('camTargetXSlider').value = cameraState.targetX;
+    document.getElementById('camTargetXVal').textContent = cameraState.targetX.toFixed(2);
+    document.getElementById('camTargetYSlider').value = cameraState.targetY;
+    document.getElementById('camTargetYVal').textContent = cameraState.targetY.toFixed(2);
+
+    // Update Viewport HUD Telemetry & Gimbal
+    document.getElementById('hudTrackMode').textContent = cameraState.trackMode.toUpperCase();
+    document.getElementById('hudTargetCoords').textContent = `${cameraState.targetX.toFixed(2)}, ${cameraState.targetY.toFixed(2)}`;
+    document.getElementById('hudAngle').textContent = `${normalizedAngle.toFixed(1)}°`;
+    document.getElementById('hudZoom').textContent = `${cameraState.zoom.toFixed(2)}x`;
+
+    const gimbal = document.getElementById('gimbalRing');
+    if (gimbal) {
+        gimbal.style.transform = `rotate(${cameraState.angleDeg}deg) scale(${Math.min(1.35, Math.max(0.65, cameraState.zoom * 0.85))})`;
+    }
+}
+
+// ============================================================================
+// KEYFRAME AUTOMATION TIMELINE ENGINE
+// ============================================================================
+
+function applyEasing(t, mode) {
+    t = Math.max(0, Math.min(1, t));
+    if (mode === 'linear') return t;
+    if (mode === 'easeInOut') {
+        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    }
+    // Default: smoothstep
+    return t * t * (3 - 2 * t);
+}
+
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
+
+function evaluateTimelineAt(timeSec) {
+    const kfs = timelineState.keyframes;
+    if (kfs.length === 0) return;
+
+    // Sort keyframes chronologically
+    kfs.sort((a, b) => a.time - b.time);
+
+    let state = null;
+    if (timeSec <= kfs[0].time) {
+        state = { ...kfs[0] };
+    } else if (timeSec >= kfs[kfs.length - 1].time) {
+        state = { ...kfs[kfs.length - 1] };
+    } else {
+        for (let i = 0; i < kfs.length - 1; i++) {
+            const k0 = kfs[i];
+            const k1 = kfs[i + 1];
+            if (timeSec >= k0.time && timeSec <= k1.time) {
+                const span = Math.max(k1.time - k0.time, 1e-5);
+                const rawT = (timeSec - k0.time) / span;
+                const easedT = applyEasing(rawT, timelineState.interpolation);
+
+                state = {
+                    targetX: lerp(k0.targetX, k1.targetX, easedT),
+                    targetY: lerp(k0.targetY, k1.targetY, easedT),
+                    zoom: lerp(k0.zoom, k1.zoom, easedT),
+                    angleDeg: lerp(k0.angleDeg, k1.angleDeg, easedT),
+                    emitX: lerp(k0.emitX, k1.emitX, easedT),
+                    emitY: lerp(k0.emitY, k1.emitY, easedT)
+                };
+                break;
+            }
+        }
+    }
+
+    if (!state) return;
+
+    // Apply interpolated camera parameters
+    cameraState.angleDeg = state.angleDeg;
+    cameraState.zoom = state.zoom;
+    if (cameraState.trackMode === 'manual') {
+        cameraState.targetX = state.targetX;
+        cameraState.targetY = state.targetY;
+        cameraState.desiredTargetX = state.targetX;
+        cameraState.desiredTargetY = state.targetY;
+    }
+
+    // Apply interpolated emitter coordinates & update sliders
+    simParams.emitX = state.emitX;
+    simParams.emitY = state.emitY;
+    document.getElementById('emitXSlider').value = simParams.emitX;
+    document.getElementById('emitXVal').textContent = simParams.emitX.toFixed(2);
+    document.getElementById('emitYSlider').value = simParams.emitY;
+    document.getElementById('emitYVal').textContent = simParams.emitY.toFixed(2);
+
+    syncCameraUI();
+}
+
+function renderTimelineMarkers() {
+    const layer = document.getElementById('keyframeMarkersLayer');
+    layer.innerHTML = '';
+
+    timelineState.keyframes.forEach((kf) => {
+        const pct = Math.max(0, Math.min(100, (kf.time / timelineState.duration) * 100));
+        const marker = document.createElement('div');
+        marker.className = 'kf-diamond absolute top-1/2' + (kf.id === timelineState.selectedKeyframeId ? ' selected' : '');
+        marker.style.left = `${pct}%`;
+        marker.title = `t=${kf.time.toFixed(2)}s | Rot: ${kf.angleDeg.toFixed(0)}° | Zoom: ${kf.zoom.toFixed(2)}x`;
+
+        marker.addEventListener('click', (e) => {
+            e.stopPropagation();
+            timelineState.selectedKeyframeId = kf.id;
+            timelineState.currentTime = kf.time;
+            evaluateTimelineAt(timelineState.currentTime);
+            updateTimelineUI();
+        });
+
+        layer.appendChild(marker);
+    });
+
+    const delBtn = document.getElementById('delKeyframeBtn');
+    const statusEl = document.getElementById('kfSelectionStatus');
+    if (timelineState.selectedKeyframeId) {
+        const sel = timelineState.keyframes.find(k => k.id === timelineState.selectedKeyframeId);
+        if (sel) {
+            delBtn.disabled = false;
+            statusEl.innerHTML = `Selected Keyframe @ <strong class="text-cyan-400">${sel.time.toFixed(2)}s</strong> — Rot: <strong class="text-amber-300">${sel.angleDeg.toFixed(1)}°</strong>, Zoom: <strong class="text-cyan-300">${sel.zoom.toFixed(2)}x</strong>, Target: (${sel.targetX.toFixed(2)}, ${sel.targetY.toFixed(2)})`;
+            return;
+        }
+    }
+    delBtn.disabled = true;
+    statusEl.innerHTML = timelineState.keyframes.length > 0
+        ? `${timelineState.keyframes.length} keyframe(s) active on timeline — click any diamond marker to inspect or scrub.`
+        : `No keyframes — click <span class="text-amber-400">◆ + KEYFRAME</span> or <span class="text-cyan-400">⟳ 360° ORBIT PRESET</span> to automate camera.`;
+}
+
+function renderTimelineRuler() {
+    const ruler = document.getElementById('timelineRuler');
+    ruler.innerHTML = '';
+    const steps = 8;
+    for (let i = 0; i <= steps; i++) {
+        const t = (timelineState.duration / steps) * i;
+        const span = document.createElement('span');
+        span.textContent = `${t.toFixed(1)}s`;
+        ruler.appendChild(span);
+    }
+}
+
+function updateTimelineUI() {
+    const pct = Math.max(0, Math.min(100, (timelineState.currentTime / timelineState.duration) * 100));
+    document.getElementById('timelineProgress').style.width = `${pct}%`;
+    document.getElementById('timelinePlayhead').style.left = `${pct}%`;
+    document.getElementById('tlCurrentTime').textContent = `${timelineState.currentTime.toFixed(2).padStart(5, '0')}s`;
+
+    const playBtn = document.getElementById('tlPlayBtn');
+    const playIcon = document.getElementById('tlPlayIcon');
+    const playText = document.getElementById('tlPlayText');
+    if (timelineState.isPlaying) {
+        playBtn.classList.add('active');
+        playIcon.textContent = '❚❚';
+        playText.textContent = 'PAUSE';
+    } else {
+        playBtn.classList.remove('active');
+        playIcon.textContent = '▶';
+        playText.textContent = 'PLAY';
+    }
+
+    renderTimelineMarkers();
+}
+
+function addOrUpdateKeyframe() {
+    const t = Math.round(timelineState.currentTime * 100) / 100;
+    // Check if a keyframe already exists within 0.05s
+    const existing = timelineState.keyframes.find(k => Math.abs(k.time - t) < 0.05);
+    if (existing) {
+        existing.targetX = cameraState.targetX;
+        existing.targetY = cameraState.targetY;
+        existing.zoom = cameraState.zoom;
+        existing.angleDeg = cameraState.angleDeg;
+        existing.emitX = simParams.emitX;
+        existing.emitY = simParams.emitY;
+        timelineState.selectedKeyframeId = existing.id;
+    } else {
+        const id = 'kf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+        timelineState.keyframes.push({
+            id,
+            time: t,
+            targetX: cameraState.targetX,
+            targetY: cameraState.targetY,
+            zoom: cameraState.zoom,
+            angleDeg: cameraState.angleDeg,
+            emitX: simParams.emitX,
+            emitY: simParams.emitY
+        });
+        timelineState.selectedKeyframeId = id;
+    }
+    updateTimelineUI();
+}
+
+function generate360OrbitPreset() {
+    const dur = timelineState.duration;
+    timelineState.keyframes = [
+        {
+            id: 'kf_orbit_0',
+            time: 0.0,
+            targetX: 0.50,
+            targetY: 0.42,
+            zoom: 1.05,
+            angleDeg: 0.0,
+            emitX: simParams.emitX,
+            emitY: simParams.emitY
+        },
+        {
+            id: 'kf_orbit_1',
+            time: dur * 0.25,
+            targetX: 0.50,
+            targetY: 0.48,
+            zoom: 1.45,
+            angleDeg: 90.0,
+            emitX: simParams.emitX,
+            emitY: simParams.emitY
+        },
+        {
+            id: 'kf_orbit_2',
+            time: dur * 0.50,
+            targetX: 0.50,
+            targetY: 0.54,
+            zoom: 1.75,
+            angleDeg: 180.0,
+            emitX: simParams.emitX,
+            emitY: simParams.emitY
+        },
+        {
+            id: 'kf_orbit_3',
+            time: dur * 0.75,
+            targetX: 0.50,
+            targetY: 0.48,
+            zoom: 1.35,
+            angleDeg: 270.0,
+            emitX: simParams.emitX,
+            emitY: simParams.emitY
+        },
+        {
+            id: 'kf_orbit_4',
+            time: dur,
+            targetX: 0.50,
+            targetY: 0.42,
+            zoom: 1.05,
+            angleDeg: 360.0,
+            emitX: simParams.emitX,
+            emitY: simParams.emitY
+        }
+    ];
+    timelineState.selectedKeyframeId = 'kf_orbit_0';
+    timelineState.currentTime = 0.0;
+    timelineState.isPlaying = true;
+    evaluateTimelineAt(0.0);
+    updateTimelineUI();
+}
+
+// ============================================================================
+// FLUID SIMULATION STEP LOOP
+// ============================================================================
+
+function splat(targetFBO, x, y, dx, dy, color, radius) {
+    const prog = programs.splat;
+    gl.useProgram(prog);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, targetFBO.write.fbo);
+    gl.viewport(0, 0, width, height);
+    
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, targetFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(prog, 'uTarget'), 0);
+    gl.uniform2f(gl.getUniformLocation(prog, 'uPoint'), x, y);
+    gl.uniform3f(gl.getUniformLocation(prog, 'uColor'), color[0], color[1], color[2]);
+    gl.uniform1f(gl.getUniformLocation(prog, 'uRadius'), radius);
+    
+    bindQuad(prog);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    targetFBO.swap();
+}
+
+function stepSimulation(dt) {
+    if (simParams.paused) return;
+
+    simClock += dt;
+    const texelSize = [1.0 / width, 1.0 / height];
+
+    // 1. Vorticity Confinement
+    gl.useProgram(programs.vorticity);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, vorticityFBO.fbo);
+    gl.viewport(0, 0, width, height);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, velocityFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(programs.vorticity, 'uVelocity'), 0);
+    gl.uniform2f(gl.getUniformLocation(programs.vorticity, 'uTexelSize'), texelSize[0], texelSize[1]);
+    bindQuad(programs.vorticity);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    gl.useProgram(programs.vorticityConfinement);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, velocityFBO.write.fbo);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, velocityFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(programs.vorticityConfinement, 'uVelocity'), 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, vorticityFBO.tex);
+    gl.uniform1i(gl.getUniformLocation(programs.vorticityConfinement, 'uVorticity'), 1);
+    gl.uniform2f(gl.getUniformLocation(programs.vorticityConfinement, 'uTexelSize'), texelSize[0], texelSize[1]);
+    gl.uniform1f(gl.getUniformLocation(programs.vorticityConfinement, 'uCurl'), simParams.vorticity);
+    gl.uniform1f(gl.getUniformLocation(programs.vorticityConfinement, 'uDt'), dt);
+    bindQuad(programs.vorticityConfinement);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    velocityFBO.swap();
+
+    // 2. Buoyancy, Wind & Field Turbulence
+    gl.useProgram(programs.buoyancy);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, velocityFBO.write.fbo);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, velocityFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(programs.buoyancy, 'uVelocity'), 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, smokeFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(programs.buoyancy, 'uSmoke'), 1);
+    gl.uniform1f(gl.getUniformLocation(programs.buoyancy, 'uBuoyancy'), simParams.buoyancy);
+    gl.uniform2f(gl.getUniformLocation(programs.buoyancy, 'uWind'), simParams.windX * 15.0, simParams.windY * 15.0);
+    gl.uniform1f(gl.getUniformLocation(programs.buoyancy, 'uTurbulence'), simParams.turbulence);
+    gl.uniform1f(gl.getUniformLocation(programs.buoyancy, 'uTime'), simClock);
+    gl.uniform1f(gl.getUniformLocation(programs.buoyancy, 'uDt'), dt);
+    bindQuad(programs.buoyancy);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    velocityFBO.swap();
+
+    // 3. Advect Velocity
+    gl.useProgram(programs.advect);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, velocityFBO.write.fbo);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, velocityFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(programs.advect, 'uVelocity'), 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, velocityFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(programs.advect, 'uSource'), 1);
+    gl.uniform2f(gl.getUniformLocation(programs.advect, 'uTexelSize'), texelSize[0], texelSize[1]);
+    gl.uniform1f(gl.getUniformLocation(programs.advect, 'uDt'), dt);
+    gl.uniform1f(gl.getUniformLocation(programs.advect, 'uDissipation'), 0.998);
+    bindQuad(programs.advect);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    velocityFBO.swap();
+
+    // 4. Advect Smoke Density
+    gl.useProgram(programs.advect);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, smokeFBO.write.fbo);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, velocityFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(programs.advect, 'uVelocity'), 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, smokeFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(programs.advect, 'uSource'), 1);
+    gl.uniform2f(gl.getUniformLocation(programs.advect, 'uTexelSize'), texelSize[0], texelSize[1]);
+    gl.uniform1f(gl.getUniformLocation(programs.advect, 'uDt'), dt);
+    gl.uniform1f(gl.getUniformLocation(programs.advect, 'uDissipation'), simParams.dissipation);
+    bindQuad(programs.advect);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    smokeFBO.swap();
+
+    // 5. Compute Divergence
+    gl.useProgram(programs.divergence);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, divergenceFBO.fbo);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, velocityFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(programs.divergence, 'uVelocity'), 0);
+    gl.uniform2f(gl.getUniformLocation(programs.divergence, 'uTexelSize'), texelSize[0], texelSize[1]);
+    bindQuad(programs.divergence);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    // 6. Pressure Poisson Solver (Jacobi Iterations)
+    gl.useProgram(programs.pressure);
+    for (let i = 0; i < 20; i++) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, pressureFBO.write.fbo);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, pressureFBO.read.tex);
+        gl.uniform1i(gl.getUniformLocation(programs.pressure, 'uPressure'), 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, divergenceFBO.tex);
+        gl.uniform1i(gl.getUniformLocation(programs.pressure, 'uDivergence'), 1);
+        gl.uniform2f(gl.getUniformLocation(programs.pressure, 'uTexelSize'), texelSize[0], texelSize[1]);
+        bindQuad(programs.pressure);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+        pressureFBO.swap();
+    }
+
+    // 7. Gradient Subtraction
+    gl.useProgram(programs.gradientSubtract);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, velocityFBO.write.fbo);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, pressureFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(programs.gradientSubtract, 'uPressure'), 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, velocityFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(programs.gradientSubtract, 'uVelocity'), 1);
+    gl.uniform2f(gl.getUniformLocation(programs.gradientSubtract, 'uTexelSize'), texelSize[0], texelSize[1]);
+    bindQuad(programs.gradientSubtract);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    velocityFBO.swap();
+
+    // 8. Handle Inverse-Camera-Projected User Pointer Interaction
+    if (isPointerDown && pointerMode !== 'pan') {
+        const dx = (pointerWorldPos.x - prevPointerWorldPos.x) * 45.0;
+        const dy = (pointerWorldPos.y - prevPointerWorldPos.y) * 45.0;
+        if (pointerMode === 'smoke') {
+            splat(velocityFBO, pointerWorldPos.x, pointerWorldPos.y, dx, dy, [dx * 2.0, dy * 2.0, 0.0], 0.018);
+            splat(smokeFBO, pointerWorldPos.x, pointerWorldPos.y, 0, 0, [1.0, 1.0, 1.0], 0.022);
+        } else if (pointerMode === 'vortex') {
+            const angle = Math.atan2(dy, dx) + Math.PI / 2;
+            const vx = Math.cos(angle) * 18.0;
+            const vy = Math.sin(angle) * 18.0;
+            splat(velocityFBO, pointerWorldPos.x, pointerWorldPos.y, vx, vy, [vx, vy, 0.0], 0.025);
+        }
+        prevPointerWorldPos = { ...pointerWorldPos };
+    }
+
+    // 9. Continuous Emitter Injection
+    if (simParams.emitterActive) {
+        const em = getActiveEmitterPosition();
+        splat(velocityFBO, em.x, em.y, 0.0, 15.0, [0.0, 15.0, 0.0], simParams.emitRadius * 0.8);
+        splat(smokeFBO, em.x, em.y, 0.0, 0.0, [1.0, 1.0, 1.0], simParams.emitRadius);
+    }
+}
+
+function render() {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0.0, 0.0, 0.0, 0.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    const prog = programs.display;
+    gl.useProgram(prog);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, smokeFBO.read.tex);
+    gl.uniform1i(gl.getUniformLocation(prog, 'uSmoke'), 0);
+    gl.uniform3f(gl.getUniformLocation(prog, 'uSmokeColor'), simParams.smokeColor[0], simParams.smokeColor[1], simParams.smokeColor[2]);
+    gl.uniform1f(gl.getUniformLocation(prog, 'uDensityScale'), simParams.densityScale);
+
+    // Upload 2D Camera Rig Uniforms
+    const angleRad = (cameraState.angleDeg * Math.PI) / 180.0;
+    gl.uniform2f(gl.getUniformLocation(prog, 'uCamTarget'), cameraState.targetX, cameraState.targetY);
+    gl.uniform1f(gl.getUniformLocation(prog, 'uCamZoom'), cameraState.zoom);
+    gl.uniform1f(gl.getUniformLocation(prog, 'uCamAngle'), angleRad);
+    gl.uniform1f(gl.getUniformLocation(prog, 'uBorderFade'), cameraState.borderFade);
+
+    bindQuad(prog);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+// ============================================================================
+// MAIN ANIMATION LOOP & TIMELINE PLAYBACK
+// ============================================================================
+
+let lastTime = performance.now();
+let frameCount = 0;
+let lastFpsUpdate = 0;
+
+function frameLoop(now) {
+    const dt = Math.min((now - lastTime) * 0.001, 0.033);
+    lastTime = now;
+
+    frameCount++;
+    if (now - lastFpsUpdate > 500) {
+        const fps = Math.round((frameCount * 1000) / (now - lastFpsUpdate));
+        document.getElementById('fpsCounter').textContent = fps;
+        frameCount = 0;
+        lastFpsUpdate = now;
+    }
+
+    if (!isRenderingTimeline) {
+        // Advance Keyframe Timeline if playing
+        if (timelineState.isPlaying) {
+            timelineState.currentTime += dt;
+            if (timelineState.currentTime >= timelineState.duration) {
+                if (timelineState.loop) {
+                    timelineState.currentTime %= timelineState.duration;
+                } else {
+                    timelineState.currentTime = timelineState.duration;
+                    timelineState.isPlaying = false;
+                }
+            }
+            evaluateTimelineAt(timelineState.currentTime);
+            updateTimelineUI();
+        }
+
+        stepSimulation(dt);
+        updateCameraRig(dt);
+        render();
+    }
+
+    requestAnimationFrame(frameLoop);
+}
+
+// ============================================================================
+// VIEWPORT MOUSE, WHEEL & TOUCH INTERACTION (CAMERA-AWARE INVERSE MAPPING)
+// ============================================================================
+
+function getCanvasScreenUv(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: (clientX - rect.left) / rect.width,
+        y: 1.0 - (clientY - rect.top) / rect.height
+    };
+}
+
+canvas.addEventListener('mousedown', (e) => {
+    isPointerDown = true;
+    const screenUv = getCanvasScreenUv(e.clientX, e.clientY);
+
+    // Middle click OR Shift + Left Click pans the 2D Camera Rig
+    if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+        e.preventDefault();
+        pointerMode = 'pan';
+        cameraState.trackMode = 'manual';
+        document.getElementById('camTrackModeSelect').value = 'manual';
+        panStartScreen = { x: screenUv.x, y: screenUv.y };
+        panStartTarget = { x: cameraState.targetX, y: cameraState.targetY };
+        return;
+    }
+
+    pointerMode = e.button === 2 ? 'vortex' : 'smoke';
+    const domainUv = screenUvToDomainUv(screenUv.x, screenUv.y);
+    pointerWorldPos = { ...domainUv };
+    prevPointerWorldPos = { ...domainUv };
+});
+
+window.addEventListener('mousemove', (e) => {
+    if (!isPointerDown) return;
+    const screenUv = getCanvasScreenUv(e.clientX, e.clientY);
+
+    if (pointerMode === 'pan') {
+        // Rotate screen delta by -cameraAngle and scale by 1/zoom so panning feels 1:1 at any rotation
+        const dScreenX = (screenUv.x - panStartScreen.x) / Math.max(cameraState.zoom, 0.05);
+        const dScreenY = (screenUv.y - panStartScreen.y) / Math.max(cameraState.zoom, 0.05);
+        const rad = -(cameraState.angleDeg * Math.PI) / 180.0;
+        const c = Math.cos(rad);
+        const s = Math.sin(rad);
+        const dWorldX = dScreenX * c - dScreenY * s;
+        const dWorldY = dScreenX * s + dScreenY * c;
+
+        cameraState.targetX = Math.max(0.0, Math.min(1.0, panStartTarget.x - dWorldX));
+        cameraState.targetY = Math.max(0.0, Math.min(1.0, panStartTarget.y - dWorldY));
+        cameraState.desiredTargetX = cameraState.targetX;
+        cameraState.desiredTargetY = cameraState.targetY;
+        syncCameraUI();
+        return;
+    }
+
+    const domainUv = screenUvToDomainUv(screenUv.x, screenUv.y);
+    pointerWorldPos = {
+        x: Math.max(0, Math.min(1, domainUv.x)),
+        y: Math.max(0, Math.min(1, domainUv.y))
+    };
+});
+
+window.addEventListener('mouseup', () => {
+    isPointerDown = false;
+});
+
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// Mouse Wheel Zoom on Viewport
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+    cameraState.zoom = Math.max(0.5, Math.min(4.0, cameraState.zoom * zoomFactor));
+    syncCameraUI();
+}, { passive: false });
+
+// Touch Support
+canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 0) return;
+    isPointerDown = true;
+    pointerMode = 'smoke';
+    const screenUv = getCanvasScreenUv(e.touches[0].clientX, e.touches[0].clientY);
+    const domainUv = screenUvToDomainUv(screenUv.x, screenUv.y);
+    pointerWorldPos = { ...domainUv };
+    prevPointerWorldPos = { ...domainUv };
+    e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('touchmove', (e) => {
+    if (!isPointerDown || e.touches.length === 0) return;
+    const screenUv = getCanvasScreenUv(e.touches[0].clientX, e.touches[0].clientY);
+    const domainUv = screenUvToDomainUv(screenUv.x, screenUv.y);
+    pointerWorldPos = {
+        x: Math.max(0, Math.min(1, domainUv.x)),
+        y: Math.max(0, Math.min(1, domainUv.y))
+    };
+    e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('touchend', () => { isPointerDown = false; });
+
+// Keyboard Shortcuts (Spacebar = Pause/Resume Sim)
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+        e.preventDefault();
+        simParams.paused = !simParams.paused;
+        const statusEl = document.getElementById('simStatusText');
+        statusEl.textContent = simParams.paused ? 'PAUSED' : 'RUNNING';
+        statusEl.className = simParams.paused ? 'text-amber-400' : 'text-emerald-400';
+    }
+});
+
+// ============================================================================
+// TIMELINE SCRUBBER & TRANSPORT UI BINDINGS
+// ============================================================================
+
+const timelineTrack = document.getElementById('timelineTrack');
+let isScrubbingTimeline = false;
+
+function scrubTimelineFromEvent(clientX) {
+    const rect = timelineTrack.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    timelineState.currentTime = pct * timelineState.duration;
+    evaluateTimelineAt(timelineState.currentTime);
+    updateTimelineUI();
+}
+
+timelineTrack.addEventListener('mousedown', (e) => {
+    isScrubbingTimeline = true;
+    timelineState.isPlaying = false;
+    scrubTimelineFromEvent(e.clientX);
+});
+
+window.addEventListener('mousemove', (e) => {
+    if (!isScrubbingTimeline) return;
+    scrubTimelineFromEvent(e.clientX);
+});
+
+window.addEventListener('mouseup', () => {
+    isScrubbingTimeline = false;
+});
+
+document.getElementById('tlPlayBtn').addEventListener('click', () => {
+    timelineState.isPlaying = !timelineState.isPlaying;
+    updateTimelineUI();
+});
+
+document.getElementById('tlStopBtn').addEventListener('click', () => {
+    timelineState.isPlaying = false;
+    timelineState.currentTime = 0.0;
+    evaluateTimelineAt(0.0);
+    updateTimelineUI();
+});
+
+document.getElementById('tlLoopBtn').addEventListener('click', (e) => {
+    timelineState.loop = !timelineState.loop;
+    e.currentTarget.classList.toggle('active', timelineState.loop);
+});
+
+document.getElementById('tlDurationInput').addEventListener('change', (e) => {
+    const val = Math.max(2, Math.min(60, parseFloat(e.target.value) || 8.0));
+    e.target.value = val.toFixed(1);
+    timelineState.duration = val;
+    if (timelineState.currentTime > val) timelineState.currentTime = val;
+    renderTimelineRuler();
+    updateTimelineUI();
+});
+
+document.getElementById('tlInterpSelect').addEventListener('change', (e) => {
+    timelineState.interpolation = e.target.value;
+    evaluateTimelineAt(timelineState.currentTime);
+});
+
+document.getElementById('addKeyframeBtn').addEventListener('click', addOrUpdateKeyframe);
+
+document.getElementById('delKeyframeBtn').addEventListener('click', () => {
+    if (!timelineState.selectedKeyframeId) return;
+    timelineState.keyframes = timelineState.keyframes.filter(k => k.id !== timelineState.selectedKeyframeId);
+    timelineState.selectedKeyframeId = null;
+    updateTimelineUI();
+});
+
+document.getElementById('preset360Btn').addEventListener('click', generate360OrbitPreset);
+
+document.getElementById('clearKeyframesBtn').addEventListener('click', () => {
+    timelineState.keyframes = [];
+    timelineState.selectedKeyframeId = null;
+    updateTimelineUI();
+});
+
+// ============================================================================
+// CAMERA RIG & SIMULATION UI BINDINGS
+// ============================================================================
+
+document.getElementById('toggleHudBtn').addEventListener('click', (e) => {
+    cameraState.showHud = !cameraState.showHud;
+    const hud = document.getElementById('cameraHudOverlay');
+    hud.style.display = cameraState.showHud ? 'flex' : 'none';
+    e.currentTarget.textContent = cameraState.showHud ? 'HUD ON' : 'HUD OFF';
+    e.currentTarget.classList.toggle('active', cameraState.showHud);
+});
+
+document.getElementById('camTrackModeSelect').addEventListener('change', (e) => {
+    cameraState.trackMode = e.target.value;
+    syncCameraUI();
+});
+
+document.getElementById('camDampingSlider').addEventListener('input', (e) => {
+    cameraState.damping = parseFloat(e.target.value);
+    document.getElementById('camDampingVal').textContent = cameraState.damping.toFixed(2);
+});
+
+document.getElementById('camAngleSlider').addEventListener('input', (e) => {
+    cameraState.angleDeg = parseFloat(e.target.value);
+    syncCameraUI();
+});
+
+document.getElementById('camAutoSpinSlider').addEventListener('input', (e) => {
+    cameraState.autoSpinSpeed = parseFloat(e.target.value);
+    document.getElementById('camAutoSpinVal').textContent = `${cameraState.autoSpinSpeed}°/s`;
+});
+
+document.getElementById('camZoomSlider').addEventListener('input', (e) => {
+    cameraState.zoom = parseFloat(e.target.value);
+    syncCameraUI();
+});
+
+document.getElementById('camTargetXSlider').addEventListener('input', (e) => {
+    cameraState.trackMode = 'manual';
+    document.getElementById('camTrackModeSelect').value = 'manual';
+    cameraState.targetX = parseFloat(e.target.value);
+    cameraState.desiredTargetX = cameraState.targetX;
+    syncCameraUI();
+});
+
+document.getElementById('camTargetYSlider').addEventListener('input', (e) => {
+    cameraState.trackMode = 'manual';
+    document.getElementById('camTrackModeSelect').value = 'manual';
+    cameraState.targetY = parseFloat(e.target.value);
+    cameraState.desiredTargetY = cameraState.targetY;
+    syncCameraUI();
+});
+
+document.getElementById('camBorderFadeSlider').addEventListener('input', (e) => {
+    cameraState.borderFade = parseFloat(e.target.value);
+    document.getElementById('camBorderFadeVal').textContent = cameraState.borderFade.toFixed(2);
+});
+
+document.getElementById('resetCamBtn').addEventListener('click', () => {
+    cameraState.targetX = 0.50;
+    cameraState.targetY = 0.50;
+    cameraState.desiredTargetX = 0.50;
+    cameraState.desiredTargetY = 0.50;
+    cameraState.zoom = 1.0;
+    cameraState.angleDeg = 0.0;
+    cameraState.autoSpinSpeed = 0.0;
+    cameraState.trackMode = 'manual';
+    document.getElementById('camTrackModeSelect').value = 'manual';
+    document.getElementById('camAutoSpinSlider').value = 0;
+    document.getElementById('camAutoSpinVal').textContent = '0°/s';
+    syncCameraUI();
+});
+
+// Fluid Solver Controls
+document.getElementById('gridSizeSelect').addEventListener('change', (e) => {
+    gridRes = parseInt(e.target.value, 10);
+    simParams.resolution = gridRes;
+    document.getElementById('gridResolutionLabel').textContent = `${gridRes}x${gridRes}`;
+    document.getElementById('gridSizeVal').textContent = gridRes;
+    initFBOs();
+});
+
+document.getElementById('emitterActiveToggle').addEventListener('change', (e) => {
+    simParams.emitterActive = e.target.checked;
+});
+
+document.getElementById('emitXSlider').addEventListener('input', (e) => {
+    simParams.emitX = parseFloat(e.target.value);
+    document.getElementById('emitXVal').textContent = simParams.emitX.toFixed(2);
+});
+
+document.getElementById('emitYSlider').addEventListener('input', (e) => {
+    simParams.emitY = parseFloat(e.target.value);
+    document.getElementById('emitYVal').textContent = simParams.emitY.toFixed(2);
+});
+
+document.getElementById('emitRadiusSlider').addEventListener('input', (e) => {
+    simParams.emitRadius = parseFloat(e.target.value);
+    document.getElementById('emitRadiusVal').textContent = simParams.emitRadius.toFixed(3);
+});
+
+document.getElementById('emitSwaySlider').addEventListener('input', (e) => {
+    simParams.emitSway = parseFloat(e.target.value);
+    document.getElementById('emitSwayVal').textContent = simParams.emitSway.toFixed(2);
+});
+
+document.getElementById('windXSlider').addEventListener('input', (e) => {
+    simParams.windX = parseFloat(e.target.value);
+    document.getElementById('windXVal').textContent = simParams.windX.toFixed(2);
+});
+
+document.getElementById('windYSlider').addEventListener('input', (e) => {
+    simParams.windY = parseFloat(e.target.value);
+    document.getElementById('windYVal').textContent = simParams.windY.toFixed(2);
+});
+
+document.getElementById('buoyancySlider').addEventListener('input', (e) => {
+    simParams.buoyancy = parseFloat(e.target.value);
+    document.getElementById('buoyancyVal').textContent = simParams.buoyancy.toFixed(1);
+});
+
+document.getElementById('dissipationSlider').addEventListener('input', (e) => {
+    simParams.dissipation = parseFloat(e.target.value);
+    document.getElementById('dissipationVal').textContent = simParams.dissipation.toFixed(3);
+});
+
+document.getElementById('vorticitySlider').addEventListener('input', (e) => {
+    simParams.vorticity = parseFloat(e.target.value);
+    document.getElementById('vorticityVal').textContent = simParams.vorticity.toFixed(1);
+});
+
+document.getElementById('turbulenceSlider').addEventListener('input', (e) => {
+    simParams.turbulence = parseFloat(e.target.value);
+    document.getElementById('turbulenceVal').textContent = simParams.turbulence.toFixed(1);
+});
+
+document.getElementById('smokeColorInput').addEventListener('input', (e) => {
+    const hex = e.target.value.replace('#', '');
+    const num = parseInt(hex, 16);
+    simParams.smokeColor = [
+        ((num >> 16) & 255) / 255,
+        ((num >> 8) & 255) / 255,
+        (num & 255) / 255
+    ];
+});
+
+document.getElementById('densitySlider').addEventListener('input', (e) => {
+    simParams.densityScale = parseFloat(e.target.value);
+    document.getElementById('densityVal').textContent = simParams.densityScale.toFixed(1);
+});
+
+document.getElementById('resetSimBtn').addEventListener('click', () => {
+    initFBOs();
+});
+
+// ============================================================================
+// FRAME-LOCKED TIMELINE SEQUENCE RENDERER & LIVE PNG RECORDER
+// ============================================================================
+
+const toggleRecordBtn = document.getElementById('toggleRecordBtn');
+const recordBtnIcon = document.getElementById('recordBtnIcon');
+const recordBtnText = document.getElementById('recordBtnText');
+const renderTimelineBtn = document.getElementById('renderTimelineBtn');
+const recordingToast = document.getElementById('recordingToast');
+const recordingToastTitle = document.getElementById('recordingToastTitle');
+const recordedCount = document.getElementById('recordedCount');
+const downloadZipBtn = document.getElementById('downloadZipBtn');
+
+function canvasToBlobAsync(cvs) {
+    return new Promise((resolve) => {
+        cvs.toBlob((blob) => resolve(blob), 'image/png');
+    });
+}
+
+// Deterministic Frame-Locked Timeline Renderer
+renderTimelineBtn.addEventListener('click', async () => {
+    if (isRenderingTimeline || isRecording) return;
+
+    const fps = parseInt(document.getElementById('exportFpsSelect').value, 10) || 30;
+    const dt = 1.0 / fps;
+    const totalFrames = Math.max(1, Math.round(timelineState.duration * fps));
+
+    isRenderingTimeline = true;
+    timelineState.isPlaying = false;
+    simParams.paused = false;
+    recordedFrames = [];
+
+    renderTimelineBtn.classList.add('active');
+    renderTimelineBtn.disabled = true;
+    toggleRecordBtn.disabled = true;
+    downloadZipBtn.disabled = true;
+
+    recordingToastTitle.textContent = `RENDERING ${fps} FPS SEQUENCE...`;
+    recordingToast.classList.remove('hidden');
+    recordingToast.classList.add('flex');
+
+    // Reset timeline to 0.00s and step deterministically frame by frame
+    timelineState.currentTime = 0.0;
+    for (let f = 0; f < totalFrames; f++) {
+        timelineState.currentTime = f * dt;
+        evaluateTimelineAt(timelineState.currentTime);
+        updateTimelineUI();
+
+        stepSimulation(dt);
+        updateCameraRig(dt);
+        render();
+
+        const blob = await canvasToBlobAsync(canvas);
+        recordedFrames.push(blob);
+        recordedCount.textContent = `Frame ${f + 1} / ${totalFrames} (${timelineState.currentTime.toFixed(2)}s)`;
+
+        // Yield briefly to keep UI responsive
+        await new Promise(r => setTimeout(r, 0));
+    }
+
+    isRenderingTimeline = false;
+    renderTimelineBtn.classList.remove('active');
+    renderTimelineBtn.disabled = false;
+    toggleRecordBtn.disabled = false;
+
+    recordingToast.classList.remove('flex');
+    recordingToast.classList.add('hidden');
+
+    if (recordedFrames.length > 0) {
+        downloadZipBtn.disabled = false;
+        downloadZipBtn.classList.add('border-cyan-500', 'text-cyan-400');
+        downloadZipBtn.textContent = `ZIP (${recordedFrames.length}F)`;
+    }
+});
+
+// Live Viewport Recorder
+toggleRecordBtn.addEventListener('click', () => {
+    if (isRenderingTimeline) return;
+
+    if (!isRecording) {
+        const fps = parseInt(document.getElementById('exportFpsSelect').value, 10) || 30;
+        isRecording = true;
+        recordedFrames = [];
+        toggleRecordBtn.classList.add('active');
+        recordBtnIcon.className = 'w-2 h-2 rounded bg-red-500 animate-pulse';
+        recordBtnText.textContent = 'STOP REC';
+        recordingToastTitle.textContent = 'LIVE RECORDING PNG SEQUENCE...';
+        recordingToast.classList.remove('hidden');
+        recordingToast.classList.add('flex');
+
+        recordIntervalId = setInterval(() => {
+            if (!isRecording) return;
+            canvas.toBlob((blob) => {
+                recordedFrames.push(blob);
+                recordedCount.textContent = `${recordedFrames.length} frames captured`;
+                if (recordedFrames.length >= 300) {
+                    toggleRecordBtn.click();
+                }
+            }, 'image/png');
+        }, Math.round(1000 / fps));
+    } else {
+        isRecording = false;
+        clearInterval(recordIntervalId);
+        toggleRecordBtn.classList.remove('active');
+        recordBtnIcon.className = 'w-2 h-2 rounded-full bg-red-500';
+        recordBtnText.textContent = 'LIVE REC';
+        recordingToast.classList.remove('flex');
+        recordingToast.classList.add('hidden');
+
+        if (recordedFrames.length > 0) {
+            downloadZipBtn.disabled = false;
+            downloadZipBtn.classList.add('border-cyan-500', 'text-cyan-400');
+            downloadZipBtn.textContent = `ZIP (${recordedFrames.length}F)`;
+        }
+    }
+});
+
+// Package Recorded Frames into ZIP
+downloadZipBtn.addEventListener('click', async () => {
+    if (recordedFrames.length === 0) return;
+    const prevLabel = downloadZipBtn.textContent;
+    downloadZipBtn.textContent = 'PACKAGING...';
+    downloadZipBtn.disabled = true;
+
+    const zip = new JSZip();
+    const folder = zip.folder('smoke_360_sequence');
+
+    recordedFrames.forEach((blob, idx) => {
+        const filename = `smoke_360_${String(idx + 1).padStart(4, '0')}.png`;
+        folder.file(filename, blob);
+    });
+
+    const content = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(content);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fluid_vfx_360_sequence_${Date.now()}.zip`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2500);
+
+    downloadZipBtn.textContent = prevLabel;
+    downloadZipBtn.disabled = false;
+});
+
+// ============================================================================
+// INITIALIZE TIMELINE UI & START LOOP ON WINDOW LOAD
+// ============================================================================
+
+window.onload = function () {
+    renderTimelineRuler();
+    updateTimelineUI();
+    syncCameraUI();
+    requestAnimationFrame(frameLoop);
+};
+</script>
+</body>
+</html>
